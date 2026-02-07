@@ -39,6 +39,14 @@ def init_db() -> None:
         )
     """)
     
+    # Migration: Add analyzed_at column if it doesn't exist (for existing databases)
+    try:
+        cursor.execute("SELECT analyzed_at FROM files LIMIT 1")
+    except Exception:
+        print("  [DB] Migrating database: adding analyzed_at column...")
+        # SQLite doesn't allow CURRENT_TIMESTAMP as default in ALTER TABLE, use NULL
+        cursor.execute("ALTER TABLE files ADD COLUMN analyzed_at TIMESTAMP")
+    
     # Create index for faster category lookups
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_files_category 
