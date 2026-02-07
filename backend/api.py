@@ -14,6 +14,11 @@ from typing import List, Tuple, Dict
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 
+# User-Agent header (required by Wikimedia API policy)
+HEADERS = {
+    "User-Agent": "CommonsDepictsAnalyzer/1.0 (Educational workshop project; Contact: workshop@example.com)"
+}
+
 # Simple in-memory cache for QID labels
 _label_cache: Dict[str, str] = {}
 
@@ -43,7 +48,7 @@ def fetch_category_files(category_name: str) -> List[str]:
     }
     
     while True:
-        response = requests.get(COMMONS_API, params=params, timeout=30)
+        response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=90)
         response.raise_for_status()
         data = response.json()
         
@@ -81,7 +86,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
         "format": "json"
     }
     
-    response = requests.get(COMMONS_API, params=params, timeout=30)
+    response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=90)
     response.raise_for_status()
     data = response.json()
     
@@ -102,7 +107,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
         "format": "json"
     }
     
-    sdc_response = requests.get(COMMONS_API, params=sdc_params, timeout=30)
+    sdc_response = requests.get(COMMONS_API, params=sdc_params, headers=HEADERS, timeout=90)
     sdc_response.raise_for_status()
     sdc_data = sdc_response.json()
     
@@ -168,7 +173,7 @@ def resolve_labels(qids: List[str]) -> Dict[str, str]:
             "format": "json"
         }
         
-        response = requests.get(WIKIDATA_API, params=params, timeout=30)
+        response = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=90)
         response.raise_for_status()
         data = response.json()
         
