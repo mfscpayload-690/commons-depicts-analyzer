@@ -5,10 +5,17 @@ Provides functions to interact with MediaWiki and Wikidata APIs:
 - fetch_category_files: Get all files from a Commons category
 - check_depicts: Check if a file has P180 depicts statements
 - resolve_labels: Convert QIDs to human-readable labels
+
+Enhanced with:
+- Retry logic with exponential backoff
+- Rate limiting to avoid API throttling
+- Better error messages
 """
 
 import requests
-from typing import List, Tuple, Dict
+import time
+import functools
+from typing import List, Tuple, Dict, Optional
 
 # API Endpoints
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
@@ -22,7 +29,83 @@ HEADERS = {
 # Simple in-memory cache for QID labels
 _label_cache: Dict[str, str] = {}
 
+# Rate limiting: track last request time
+_last_request_time: float = 0.0
+RATE_LIMIT_DELAY = 0.1  # 100ms between requests
 
+
+def _rate_limit():
+    """Enforce rate limiting between API calls."""
+    global _last_request_time
+    current_time = time.time()
+    elapsed = current_time - _last_request_time
+    if elapsed < RATE_LIMIT_DELAY:
+        time.sleep(RATE_LIMIT_DELAY - elapsed)
+    _last_request_time = time.time()
+
+
+def retry_on_failure(max_retries: int = 3, base_delay: float = 1.0):
+    """
+    Decorator to retry failed API calls with exponential backoff.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay in seconds (doubles each retry)
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except requests.exceptions.RequestException as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        delay = base_delay * (2 ** attempt)
+                        print(f"  [RETRY] Attempt {attempt + 1} failed, retrying in {delay}s...")
+                        time.sleep(delay)
+            raise last_exception
+        return wrapper
+    return decorator
+
+
+def validate_category_exists(category_name: str) -> Tuple[bool, Optional[str]]:
+    """
+    Check if a category exists on Wikimedia Commons.
+    
+    Args:
+        category_name: Category name (with 'Category:' prefix)
+    
+    Returns:
+        Tuple of (exists: bool, error_message: Optional[str])
+    """
+    _rate_limit()
+    params = {
+        "action": "query",
+        "titles": category_name,
+        "format": "json"
+    }
+    
+    try:
+        response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        
+        pages = data.get("query", {}).get("pages", {})
+        if not pages:
+            return (False, f"Category '{category_name}' not found on Commons")
+        
+        page_id = list(pages.keys())[0]
+        if page_id == "-1":
+            return (False, f"Category '{category_name}' does not exist on Wikimedia Commons")
+        
+        return (True, None)
+    except requests.exceptions.RequestException as e:
+        return (False, f"Network error checking category: {str(e)}")
+
+
+@retry_on_failure(max_retries=3, base_delay=1.0)
 def fetch_category_files(category_name: str) -> List[str]:
     """
     Fetch all file titles from a Wikimedia Commons category.
@@ -32,10 +115,19 @@ def fetch_category_files(category_name: str) -> List[str]:
     
     Returns:
         List of file titles (e.g., ['File:Example.jpg', ...])
+    
+    Raises:
+        ValueError: If category doesn't exist or is empty
+        requests.exceptions.RequestException: If API call fails after retries
     """
     # Normalize category name
     if not category_name.startswith("Category:"):
         category_name = f"Category:{category_name}"
+    
+    # Validate category exists before fetching
+    exists, error_msg = validate_category_exists(category_name)
+    if not exists:
+        raise ValueError(error_msg)
     
     files = []
     params = {
@@ -47,7 +139,9 @@ def fetch_category_files(category_name: str) -> List[str]:
         "format": "json"
     }
     
+    page_count = 0
     while True:
+        _rate_limit()  # Rate limit each request
         response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=90)
         response.raise_for_status()
         data = response.json()
@@ -56,6 +150,9 @@ def fetch_category_files(category_name: str) -> List[str]:
         members = data.get("query", {}).get("categorymembers", [])
         for member in members:
             files.append(member["title"])
+        
+        page_count += 1
+        print(f"  [API] Fetched page {page_count}, total files so far: {len(files)}")
         
         # Check for more pages
         if "continue" in data:
@@ -66,6 +163,7 @@ def fetch_category_files(category_name: str) -> List[str]:
     return files
 
 
+@retry_on_failure(max_retries=2, base_delay=0.5)
 def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
     """
     Check if a Commons file has depicts (P180) statements.
@@ -86,6 +184,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
         "format": "json"
     }
     
+    _rate_limit()  # Rate limit
     response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=90)
     response.raise_for_status()
     data = response.json()
@@ -107,6 +206,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
         "format": "json"
     }
     
+    _rate_limit()  # Rate limit
     sdc_response = requests.get(COMMONS_API, params=sdc_params, headers=HEADERS, timeout=90)
     sdc_response.raise_for_status()
     sdc_data = sdc_response.json()
@@ -133,6 +233,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
     return (len(qids) > 0, qids)
 
 
+@retry_on_failure(max_retries=2, base_delay=0.5)
 def resolve_labels(qids: List[str]) -> Dict[str, str]:
     """
     Resolve Wikidata QIDs to English labels.

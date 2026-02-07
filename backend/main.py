@@ -13,7 +13,8 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 from api import fetch_category_files, check_depicts, resolve_labels
-from database import init_db, insert_file, get_files_by_category, get_statistics, clear_category
+from database import (init_db, insert_file, get_files_by_category, 
+                      get_statistics, clear_category, verify_category_saved, get_all_categories)
 
 # Initialize Flask app
 app = Flask(__name__, static_folder="../frontend")
@@ -47,6 +48,9 @@ def analyze_category(category_name: str, progress_callback=None) -> dict:
     
     try:
         files = fetch_category_files(category_name)
+    except ValueError as e:
+        # Category validation error (doesn't exist)
+        return {"error": str(e)}
     except Exception as e:
         return {"error": f"Failed to fetch category: {str(e)}"}
     
@@ -150,6 +154,35 @@ def api_results(category):
         "category": category,
         "statistics": stats,
         "files": files_data
+    })
+
+
+@app.route("/api/verify/<path:category>", methods=["GET"])
+def api_verify(category):
+    """
+    Verify that a category's data was saved to the database.
+    
+    Returns verification info including record counts, timestamps, and sample data.
+    """
+    result = verify_category_saved(category)
+    
+    if not result.get("verified"):
+        return jsonify(result), 404
+    
+    return jsonify(result)
+
+
+@app.route("/api/history", methods=["GET"])
+def api_history():
+    """
+    Get a list of all previously analyzed categories.
+    
+    Returns category names, file counts, and last analyzed timestamps.
+    """
+    categories = get_all_categories()
+    return jsonify({
+        "categories": categories,
+        "total": len(categories)
     })
 
 
