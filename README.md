@@ -22,7 +22,7 @@ Many Wikimedia Commons files lack structured depicts metadata, which affects dis
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/commons-depicts-analyzer.git
+git clone https://github.com/mfscpayload-690/commons-depicts-analyzer.git
 cd commons-depicts-analyzer
 
 # Install dependencies
@@ -64,10 +64,10 @@ commons-depicts-analyzer/
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/analyze` | Analyze a category. Body: `{"category": "..."}` |
-| GET | `/api/results/<category>` | Get cached results for a category |
+| Method | Endpoint                  | Description                                     |
+| ------ | ------------------------- | ----------------------------------------------- |
+| POST   | `/api/analyze`            | Analyze a category. Body: `{"category": "..."}` |
+| GET    | `/api/results/<category>` | Get cached results for a category               |
 
 ## Tech Stack
 

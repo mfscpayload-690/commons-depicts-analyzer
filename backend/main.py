@@ -176,12 +176,12 @@ def cli_main():
     def progress(msg):
         print(f"  {msg}", file=sys.stderr)
     
-    print(f"\n📂 Analyzing: {args.category}\n", file=sys.stderr)
+    print(f"\n[*] Analyzing: {args.category}\n", file=sys.stderr)
     
     result = analyze_category(args.category, progress_callback=progress)
     
     if "error" in result:
-        print(f"\n❌ Error: {result['error']}", file=sys.stderr)
+        print(f"\n[ERROR] {result['error']}", file=sys.stderr)
         sys.exit(1)
     
     if args.json:
@@ -189,17 +189,17 @@ def cli_main():
     else:
         stats = result["statistics"]
         print(f"\n{'='*50}", file=sys.stderr)
-        print(f"📊 Results for {result['category']}", file=sys.stderr)
+        print(f"[STATS] Results for {result['category']}", file=sys.stderr)
         print(f"{'='*50}", file=sys.stderr)
         print(f"  Total files:      {stats['total']}", file=sys.stderr)
-        print(f"  With depicts:     {stats['with_depicts']} ✓", file=sys.stderr)
-        print(f"  Without depicts:  {stats['without_depicts']} ✗", file=sys.stderr)
+        print(f"  With depicts:     {stats['with_depicts']} [OK]", file=sys.stderr)
+        print(f"  Without depicts:  {stats['without_depicts']} [X]", file=sys.stderr)
         
         if stats["total"] > 0:
             coverage = (stats["with_depicts"] / stats["total"]) * 100
             print(f"  Coverage:         {coverage:.1f}%", file=sys.stderr)
         
-        print(f"\n📁 Files without depicts:", file=sys.stderr)
+        print(f"\n[FILES] Without depicts:", file=sys.stderr)
         for f in result["files"]:
             if not f["has_depicts"]:
                 print(f"    - {f['file_name']}", file=sys.stderr)
@@ -211,6 +211,6 @@ if __name__ == "__main__":
         cli_main()
     else:
         # Start web server
-        print("🚀 Starting Wikimedia Commons Depicts Analyzer...")
-        print("📍 Open http://localhost:5000 in your browser")
+        print("Starting Wikimedia Commons Depicts Analyzer...")
+        print("Open http://localhost:5000 in your browser")
         app.run(host="0.0.0.0", port=5000, debug=True)
