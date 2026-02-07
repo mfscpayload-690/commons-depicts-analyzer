@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Analyze Wikimedia Commons categories for depicts (P180) metadata coverage">
+    <title>Commons Depicts Analyzer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Commons Depicts Analyzer</h1>
+            <p class="subtitle">Analyze Wikimedia Commons categories for <a href="https://www.wikidata.org/wiki/Property:P180" target="_blank" rel="noopener">depicts (P180)</a> metadata coverage</p>
+        </header>
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <form id="analyze-form" class="search-form">
+                <label for="category-input" class="visually-hidden">Category name</label>
+                <input 
+                    type="text" 
+                    id="category-input" 
+                    class="search-input"
+                    placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" id="analyze-btn" class="btn btn-primary">
+                    Analyze
+                </button>
+            </form>
+            <p class="search-hint">
+                Enter a category name without the "Category:" prefix
+            </p>
+        </section>
+
+        <!-- Status Message -->
+        <div id="status-message" class="status-message hidden"></div>
+
+        <!-- Statistics Section -->
+        <section id="statistics-section" class="statistics-section hidden">
+            <h2>Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-total">0</span>
+                    <span class="stat-label">Total Files</span>
+                </div>
+                <div class="stat-card stat-success">
+                    <span class="stat-value" id="stat-with-depicts">0</span>
+                    <span class="stat-label">With Depicts</span>
+                </div>
+                <div class="stat-card stat-warning">
+                    <span class="stat-value" id="stat-without-depicts">0</span>
+                    <span class="stat-label">Without Depicts</span>
+                </div>
+                <div class="stat-card stat-info">
+                    <span class="stat-value" id="stat-coverage">0%</span>
+                    <span class="stat-label">Coverage</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="results-section" class="results-section hidden">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="without-depicts">
+                    Files Without Depicts <span id="count-without" class="badge">0</span>
+                </button>
+                <button class="tab-btn" data-tab="with-depicts">
+                    Files With Depicts <span id="count-with" class="badge">0</span>
+                </button>
+            </div>
+
+            <!-- Tab Content: Without Depicts -->
+            <div id="tab-without-depicts" class="tab-content active">
+                <table class="data-table" id="table-without-depicts">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>File Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+                <p id="empty-without" class="empty-message hidden">All files have depicts metadata! 🎉</p>
+            </div>
+
+            <!-- Tab Content: With Depicts -->
+            <div id="tab-with-depicts" class="tab-content">
+                <table class="data-table" id="table-with-depicts">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>File Name</th>
+                            <th>Depicts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+                <p id="empty-with" class="empty-message hidden">No files have depicts metadata.</p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>
+                Built for the <a href="https://meta.wikimedia.org/wiki/Wikimedia_Technical_Workshop" target="_blank" rel="noopener">Wikimedia Technical Workshop</a> at THARANG 2K26
+            </p>
+            <p>
+                <a href="https://github.com/" target="_blank" rel="noopener">View Source</a> · 
+                <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
