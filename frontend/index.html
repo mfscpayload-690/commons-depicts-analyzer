@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Analyze Wikimedia Commons categories for depicts (P180) metadata coverage">
     <title>Commons Depicts Analyzer</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -13,7 +15,7 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>Commons Depicts Analyzer</h1>
+            <h1><i class="fa-solid fa-magnifying-glass-chart"></i> Commons Depicts Analyzer</h1>
             <p class="subtitle">Analyze Wikimedia Commons categories for <a
                     href="https://www.wikidata.org/wiki/Property:P180" target="_blank" rel="noopener">depicts (P180)</a>
                 metadata coverage</p>
@@ -23,11 +25,14 @@
         <section class="search-section">
             <form id="analyze-form" class="search-form">
                 <label for="category-input" class="visually-hidden">Category name</label>
-                <input type="text" id="category-input" class="search-input"
-                    placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
-                    autocomplete="off" required>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-folder-open input-icon"></i>
+                    <input type="text" id="category-input" class="search-input"
+                        placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
+                        autocomplete="off" required>
+                </div>
                 <button type="submit" id="analyze-btn" class="btn btn-primary">
-                    Analyze
+                    <i class="fa-solid fa-bolt"></i> Analyze
                 </button>
             </form>
             <p class="search-hint">
@@ -40,21 +45,25 @@
 
         <!-- Statistics Section -->
         <section id="statistics-section" class="statistics-section hidden">
-            <h2>Statistics</h2>
+            <h2><i class="fa-solid fa-chart-pie"></i> Statistics</h2>
             <div class="stats-grid">
                 <div class="stat-card">
+                    <span class="stat-icon"><i class="fa-solid fa-images"></i></span>
                     <span class="stat-value" id="stat-total">0</span>
                     <span class="stat-label">Total Files</span>
                 </div>
                 <div class="stat-card stat-success">
+                    <span class="stat-icon"><i class="fa-solid fa-check-circle"></i></span>
                     <span class="stat-value" id="stat-with-depicts">0</span>
                     <span class="stat-label">With Depicts</span>
                 </div>
                 <div class="stat-card stat-warning">
+                    <span class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
                     <span class="stat-value" id="stat-without-depicts">0</span>
                     <span class="stat-label">Without Depicts</span>
                 </div>
                 <div class="stat-card stat-info">
+                    <span class="stat-icon"><i class="fa-solid fa-percent"></i></span>
                     <span class="stat-value" id="stat-coverage">0%</span>
                     <span class="stat-label">Coverage</span>
                 </div>
@@ -66,10 +75,12 @@
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab-btn active" data-tab="without-depicts">
-                    Files Without Depicts <span id="count-without" class="badge">0</span>
+                    <i class="fa-solid fa-list-ul"></i> Files Without Depicts <span id="count-without"
+                        class="badge">0</span>
                 </button>
                 <button class="tab-btn" data-tab="with-depicts">
-                    Files With Depicts <span id="count-with" class="badge">0</span>
+                    <i class="fa-solid fa-check-double"></i> Files With Depicts <span id="count-with"
+                        class="badge">0</span>
                 </button>
             </div>
 

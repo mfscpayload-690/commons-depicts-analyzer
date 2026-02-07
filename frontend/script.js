@@ -47,13 +47,13 @@ async function analyzeCategory(category) {
         },
         body: JSON.stringify({ category }),
     });
-    
+
     const data = await response.json();
-    
+
     if (!response.ok) {
         throw new Error(data.error || 'Analysis failed');
     }
-    
+
     return data;
 }
 
@@ -85,12 +85,12 @@ function updateStatistics(stats) {
     elements.statTotal.textContent = stats.total;
     elements.statWithDepicts.textContent = stats.with_depicts;
     elements.statWithoutDepicts.textContent = stats.without_depicts;
-    
-    const coverage = stats.total > 0 
-        ? Math.round((stats.with_depicts / stats.total) * 100) 
+
+    const coverage = stats.total > 0
+        ? Math.round((stats.with_depicts / stats.total) * 100)
         : 0;
     elements.statCoverage.textContent = `${coverage}%`;
-    
+
     elements.statisticsSection.classList.remove('hidden');
 }
 
@@ -111,22 +111,22 @@ function getCommonsUrl(fileTitle) {
 function populateTables(files) {
     const withDepicts = files.filter(f => f.has_depicts);
     const withoutDepicts = files.filter(f => !f.has_depicts);
-    
+
     // Update counts
     elements.countWith.textContent = withDepicts.length;
     elements.countWithout.textContent = withoutDepicts.length;
-    
+
     // Populate "without depicts" table
     const tbodyWithout = elements.tableWithoutDepicts.querySelector('tbody');
     tbodyWithout.innerHTML = '';
-    
+
     if (withoutDepicts.length === 0) {
         elements.tableWithoutDepicts.classList.add('hidden');
         elements.emptyWithout.classList.remove('hidden');
     } else {
         elements.tableWithoutDepicts.classList.remove('hidden');
         elements.emptyWithout.classList.add('hidden');
-        
+
         withoutDepicts.forEach((file, index) => {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -146,18 +146,18 @@ function populateTables(files) {
             tbodyWithout.appendChild(row);
         });
     }
-    
+
     // Populate "with depicts" table
     const tbodyWith = elements.tableWithDepicts.querySelector('tbody');
     tbodyWith.innerHTML = '';
-    
+
     if (withDepicts.length === 0) {
         elements.tableWithDepicts.classList.add('hidden');
         elements.emptyWith.classList.remove('hidden');
     } else {
         elements.tableWithDepicts.classList.remove('hidden');
         elements.emptyWith.classList.add('hidden');
-        
+
         withDepicts.forEach((file, index) => {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -172,7 +172,7 @@ function populateTables(files) {
             tbodyWith.appendChild(row);
         });
     }
-    
+
     elements.resultsSection.classList.remove('hidden');
 }
 
@@ -194,7 +194,11 @@ function escapeHtml(text) {
 function setLoading(isLoading) {
     elements.analyzeBtn.disabled = isLoading;
     elements.categoryInput.disabled = isLoading;
-    elements.analyzeBtn.textContent = isLoading ? 'Analyzing...' : 'Analyze';
+    if (isLoading) {
+        elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+    } else {
+        elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze';
+    }
 }
 
 // ============ Tab Handling ============
@@ -202,15 +206,15 @@ function setLoading(isLoading) {
 function initTabs() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
-    
+
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const tabId = button.dataset.tab;
-            
+
             // Update buttons
             tabButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
+
             // Update content
             tabContents.forEach(content => {
                 content.classList.remove('active');
@@ -226,30 +230,30 @@ function initTabs() {
 
 async function handleSubmit(event) {
     event.preventDefault();
-    
+
     const category = elements.categoryInput.value.trim();
     if (!category) {
         showStatus('Please enter a category name', 'error');
         return;
     }
-    
+
     setLoading(true);
     showStatus(`Analyzing "${category}"... This may take a moment for large categories.`, 'loading');
-    
+
     // Hide previous results
     elements.statisticsSection.classList.add('hidden');
     elements.resultsSection.classList.add('hidden');
-    
+
     try {
         const result = await analyzeCategory(category);
-        
+
         hideStatus();
         updateStatistics(result.statistics);
         populateTables(result.files);
-        
+
         showStatus(`Analysis complete! Found ${result.statistics.total} files.`, 'success');
         setTimeout(hideStatus, 3000);
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -262,7 +266,7 @@ async function handleSubmit(event) {
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     elements.form.addEventListener('submit', handleSubmit);
-    
+
     // Focus input on load
     elements.categoryInput.focus();
 });
