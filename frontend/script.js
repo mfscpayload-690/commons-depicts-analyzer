@@ -278,7 +278,120 @@ document.addEventListener('DOMContentLoaded', () => {
     if (refreshBtn) {
         refreshBtn.addEventListener('click', loadHistory);
     }
+
+    // Initialize appearance panel
+    initAppearancePanel();
 });
+
+// ============ Appearance Panel ============
+
+function initAppearancePanel() {
+    const toggleBtn = document.getElementById('appearance-toggle');
+    const closeBtn = document.getElementById('appearance-close');
+    const panel = document.getElementById('appearance-panel');
+
+    if (!toggleBtn || !panel) return;
+
+    // Toggle panel visibility
+    toggleBtn.addEventListener('click', () => {
+        panel.classList.toggle('hidden');
+    });
+
+    // Close panel
+    closeBtn.addEventListener('click', () => {
+        panel.classList.add('hidden');
+    });
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (!panel.contains(e.target) && !toggleBtn.contains(e.target)) {
+            panel.classList.add('hidden');
+        }
+    });
+
+    // Load saved preferences
+    loadAppearanceSettings();
+
+    // Handle text size changes
+    document.querySelectorAll('input[name="text-size"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const size = e.target.value;
+            if (size === 'standard') {
+                document.documentElement.removeAttribute('data-text-size');
+            } else {
+                document.documentElement.setAttribute('data-text-size', size);
+            }
+            localStorage.setItem('textSize', size);
+        });
+    });
+
+    // Handle width changes
+    document.querySelectorAll('input[name="width"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const width = e.target.value;
+            if (width === 'standard') {
+                document.documentElement.removeAttribute('data-width');
+            } else {
+                document.documentElement.setAttribute('data-width', width);
+            }
+            localStorage.setItem('width', width);
+        });
+    });
+
+    // Handle color/theme changes
+    document.querySelectorAll('input[name="color"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const theme = e.target.value;
+            applyTheme(theme);
+            localStorage.setItem('theme', theme);
+        });
+    });
+}
+
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    } else if (theme === 'automatic') {
+        // Check system preference
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+}
+
+function loadAppearanceSettings() {
+    // Load text size
+    const savedTextSize = localStorage.getItem('textSize') || 'standard';
+    const textRadio = document.querySelector(`input[name="text-size"][value="${savedTextSize}"]`);
+    if (textRadio) {
+        textRadio.checked = true;
+        if (savedTextSize !== 'standard') {
+            document.documentElement.setAttribute('data-text-size', savedTextSize);
+        }
+    }
+
+    // Load width
+    const savedWidth = localStorage.getItem('width') || 'standard';
+    const widthRadio = document.querySelector(`input[name="width"][value="${savedWidth}"]`);
+    if (widthRadio) {
+        widthRadio.checked = true;
+        if (savedWidth !== 'standard') {
+            document.documentElement.setAttribute('data-width', savedWidth);
+        }
+    }
+
+    // Load theme
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    const themeRadio = document.querySelector(`input[name="color"][value="${savedTheme}"]`);
+    if (themeRadio) {
+        themeRadio.checked = true;
+        applyTheme(savedTheme);
+    }
+}
 
 // ============ History Dashboard ============
 

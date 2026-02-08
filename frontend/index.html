@@ -15,11 +15,76 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1><i class="fa-solid fa-magnifying-glass-chart"></i> Commons Depicts Analyzer</h1>
-            <p class="subtitle">Analyze Wikimedia Commons categories for <a
-                    href="https://www.wikidata.org/wiki/Property:P180" target="_blank" rel="noopener">depicts (P180)</a>
-                metadata coverage</p>
+            <div class="header-content">
+                <h1><i class="fa-solid fa-magnifying-glass-chart"></i> Commons Depicts Analyzer</h1>
+                <p class="subtitle">Analyze Wikimedia Commons categories for <a
+                        href="https://www.wikidata.org/wiki/Property:P180" target="_blank" rel="noopener">depicts
+                        (P180)</a>
+                    metadata coverage</p>
+            </div>
+            <!-- Appearance Toggle Button -->
+            <button id="appearance-toggle" class="appearance-btn" title="Appearance settings">
+                <i class="fa-solid fa-palette"></i>
+            </button>
         </header>
+
+        <!-- Appearance Panel (Wikimedia Style) -->
+        <aside id="appearance-panel" class="appearance-panel hidden">
+            <div class="appearance-header">
+                <span class="appearance-title">Appearance</span>
+                <button id="appearance-close" class="appearance-hide-btn">hide</button>
+            </div>
+
+            <div class="appearance-section">
+                <span class="appearance-label">Text</span>
+                <div class="appearance-options">
+                    <label class="appearance-option">
+                        <input type="radio" name="text-size" value="small">
+                        <span>Small</span>
+                    </label>
+                    <label class="appearance-option">
+                        <input type="radio" name="text-size" value="standard" checked>
+                        <span>Standard</span>
+                    </label>
+                    <label class="appearance-option">
+                        <input type="radio" name="text-size" value="large">
+                        <span>Large</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="appearance-section">
+                <span class="appearance-label">Width</span>
+                <div class="appearance-options">
+                    <label class="appearance-option">
+                        <input type="radio" name="width" value="standard" checked>
+                        <span>Standard</span>
+                    </label>
+                    <label class="appearance-option">
+                        <input type="radio" name="width" value="wide">
+                        <span>Wide</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="appearance-section">
+                <span class="appearance-label">Color <span class="beta-badge">beta</span></span>
+                <div class="appearance-options">
+                    <label class="appearance-option">
+                        <input type="radio" name="color" value="automatic">
+                        <span>Automatic</span>
+                    </label>
+                    <label class="appearance-option">
+                        <input type="radio" name="color" value="light" checked>
+                        <span>Light</span>
+                    </label>
+                    <label class="appearance-option">
+                        <input type="radio" name="color" value="dark">
+                        <span>Dark</span>
+                    </label>
+                </div>
+            </div>
+        </aside>
 
         <!-- Search Section -->
         <section class="search-section">
