@@ -70,6 +70,42 @@
             </div>
         </section>
 
+        <!-- History Dashboard Section -->
+        <section id="history-section" class="history-section">
+            <div class="history-header">
+                <h2><i class="fa-solid fa-clock-rotate-left"></i> Analysis History</h2>
+                <button id="refresh-history-btn" class="btn btn-secondary" title="Refresh history">
+                    <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                </button>
+            </div>
+            <p class="history-subtitle">Previously analyzed categories stored in your local database</p>
+
+            <!-- History Stats Summary -->
+            <div class="history-summary" id="history-summary">
+                <div class="summary-item">
+                    <i class="fa-solid fa-database"></i>
+                    <span id="history-total-files">0</span> total files
+                </div>
+                <div class="summary-item">
+                    <i class="fa-solid fa-folder-tree"></i>
+                    <span id="history-total-categories">0</span> categories
+                </div>
+                <div class="summary-item">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span id="history-avg-coverage">0%</span> avg coverage
+                </div>
+            </div>
+
+            <!-- History Cards Grid -->
+            <div class="history-grid" id="history-grid">
+                <!-- Populated dynamically -->
+            </div>
+
+            <p id="history-empty" class="history-empty hidden">
+                <i class="fa-solid fa-inbox"></i> No categories analyzed yet. Start by analyzing a category above!
+            </p>
+        </section>
+
         <!-- Results Section -->
         <section id="results-section" class="results-section hidden">
             <!-- Tabs -->
@@ -132,6 +168,29 @@
                 <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a>
             </p>
         </footer>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-icon">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="modal-title">Delete Category?</h3>
+            <p class="modal-category-name" id="modal-category-name"></p>
+            <p class="modal-message">This will permanently remove all files for this category from your local database.
+            </p>
+            <p class="modal-warning"><i class="fa-solid fa-circle-info"></i> This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel">
+                    <i class="fa-solid fa-xmark"></i> Cancel
+                </button>
+                <button id="modal-confirm-btn" class="modal-btn modal-btn-delete">
+                    <i class="fa-solid fa-trash"></i> Delete
+                </button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
