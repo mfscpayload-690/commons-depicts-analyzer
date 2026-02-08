@@ -269,4 +269,158 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Focus input on load
     elements.categoryInput.focus();
+    
+    // Load history on page load
+    loadHistory();
+    
+    // Refresh history button
+    const refreshBtn = document.getElementById('refresh-history-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadHistory);
+    }
 });
+
+// ============ History Dashboard ============
+
+/**
+ * Fetch history from API
+ */
+async function fetchHistory() {
+    const response = await fetch('/api/history');
+    const data = await response.json();
+    return data;
+}
+
+/**
+ * Get coverage level class
+ */
+function getCoverageLevel(coverage) {
+    if (coverage < 30) return 'low';
+    if (coverage < 70) return 'medium';
+    return 'high';
+}
+
+/**
+ * Create a history card element
+ */
+function createHistoryCard(category) {
+    const totalFiles = category.total_files || 0;
+    const withDepicts = category.with_depicts || 0;
+    const withoutDepicts = totalFiles - withDepicts;
+    const coverage = totalFiles > 0 ? Math.round((withDepicts / totalFiles) * 100) : 0;
+    const coverageLevel = getCoverageLevel(coverage);
+    
+    // Format category name (remove "Category:" prefix for display)
+    const displayName = category.category.replace('Category:', '');
+    
+    const card = document.createElement('div');
+    card.className = 'history-card';
+    card.innerHTML = `
+        <div class="history-card-header">
+            <h3 class="history-card-title">
+                <i class="fa-solid fa-folder"></i>
+                ${escapeHtml(displayName)}
+            </h3>
+            <span class="history-card-coverage ${coverageLevel}">${coverage}%</span>
+        </div>
+        
+        <div class="coverage-bar-container">
+            <div class="coverage-bar ${coverageLevel}" style="width: ${coverage}%"></div>
+        </div>
+        
+        <div class="history-card-stats">
+            <span class="history-card-stat">
+                <i class="fa-solid fa-images"></i> ${totalFiles} files
+            </span>
+            <span class="history-card-stat stat-with">
+                <i class="fa-solid fa-check"></i> ${withDepicts} with P180
+            </span>
+            <span class="history-card-stat stat-without">
+                <i class="fa-solid fa-xmark"></i> ${withoutDepicts} without
+            </span>
+        </div>
+        
+        <div class="history-card-actions">
+            <a href="https://commons.wikimedia.org/wiki/${encodeURIComponent(category.category)}" 
+               target="_blank" rel="noopener" class="history-card-action" title="View on Commons">
+                <i class="fa-solid fa-external-link"></i> Commons
+            </a>
+            <button class="history-card-action" onclick="reanalyzeCategory('${escapeHtml(displayName)}')" title="Re-analyze">
+                <i class="fa-solid fa-arrows-rotate"></i> Re-analyze
+            </button>
+        </div>
+    `;
+    
+    return card;
+}
+
+/**
+ * Re-analyze a category
+ */
+function reanalyzeCategory(categoryName) {
+    elements.categoryInput.value = categoryName;
+    elements.form.dispatchEvent(new Event('submit'));
+}
+
+/**
+ * Update history summary stats
+ */
+function updateHistorySummary(categories) {
+    const totalFiles = categories.reduce((sum, c) => sum + (c.total_files || 0), 0);
+    const totalWithDepicts = categories.reduce((sum, c) => sum + (c.with_depicts || 0), 0);
+    const avgCoverage = totalFiles > 0 ? Math.round((totalWithDepicts / totalFiles) * 100) : 0;
+    
+    document.getElementById('history-total-files').textContent = totalFiles;
+    document.getElementById('history-total-categories').textContent = categories.length;
+    document.getElementById('history-avg-coverage').textContent = avgCoverage + '%';
+}
+
+/**
+ * Load and display history
+ */
+async function loadHistory() {
+    const grid = document.getElementById('history-grid');
+    const emptyState = document.getElementById('history-empty');
+    const refreshBtn = document.getElementById('refresh-history-btn');
+    
+    // Show loading state
+    if (refreshBtn) {
+        refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
+        refreshBtn.disabled = true;
+    }
+    
+    try {
+        const data = await fetchHistory();
+        const categories = data.categories || [];
+        
+        // Clear grid
+        grid.innerHTML = '';
+        
+        if (categories.length === 0) {
+            emptyState.classList.remove('hidden');
+            grid.classList.add('hidden');
+            updateHistorySummary([]);
+        } else {
+            emptyState.classList.add('hidden');
+            grid.classList.remove('hidden');
+            
+            // Update summary
+            updateHistorySummary(categories);
+            
+            // Create cards
+            categories.forEach(category => {
+                const card = createHistoryCard(category);
+                grid.appendChild(card);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load history:', error);
+        grid.innerHTML = '<p class="history-empty"><i class="fa-solid fa-exclamation-triangle"></i> Failed to load history</p>';
+    } finally {
+        // Reset button
+        if (refreshBtn) {
+            refreshBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh';
+            refreshBtn.disabled = false;
+        }
+    }
+}

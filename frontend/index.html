@@ -70,6 +70,42 @@
             </div>
         </section>
 
+        <!-- History Dashboard Section -->
+        <section id="history-section" class="history-section">
+            <div class="history-header">
+                <h2><i class="fa-solid fa-clock-rotate-left"></i> Analysis History</h2>
+                <button id="refresh-history-btn" class="btn btn-secondary" title="Refresh history">
+                    <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                </button>
+            </div>
+            <p class="history-subtitle">Previously analyzed categories stored in your local database</p>
+            
+            <!-- History Stats Summary -->
+            <div class="history-summary" id="history-summary">
+                <div class="summary-item">
+                    <i class="fa-solid fa-database"></i>
+                    <span id="history-total-files">0</span> total files
+                </div>
+                <div class="summary-item">
+                    <i class="fa-solid fa-folder-tree"></i>
+                    <span id="history-total-categories">0</span> categories
+                </div>
+                <div class="summary-item">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span id="history-avg-coverage">0%</span> avg coverage
+                </div>
+            </div>
+
+            <!-- History Cards Grid -->
+            <div class="history-grid" id="history-grid">
+                <!-- Populated dynamically -->
+            </div>
+            
+            <p id="history-empty" class="history-empty hidden">
+                <i class="fa-solid fa-inbox"></i> No categories analyzed yet. Start by analyzing a category above!
+            </p>
+        </section>
+
         <!-- Results Section -->
         <section id="results-section" class="results-section hidden">
             <!-- Tabs -->
