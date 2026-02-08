@@ -135,6 +135,55 @@
             </div>
         </section>
 
+        <!-- Results Section -->
+        <section id="results-section" class="results-section hidden">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="without-depicts">
+                    <i class="fa-solid fa-list-ul"></i> Files Without Depicts <span id="count-without"
+                        class="badge">0</span>
+                </button>
+                <button class="tab-btn" data-tab="with-depicts">
+                    <i class="fa-solid fa-check-double"></i> Files With Depicts <span id="count-with"
+                        class="badge">0</span>
+                </button>
+            </div>
+
+            <!-- Tab Content: Without Depicts -->
+            <div id="tab-without-depicts" class="tab-content active">
+                <table class="data-table" id="table-without-depicts">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>File Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+                <p id="empty-without" class="empty-message hidden">All files have depicts metadata! 🎉</p>
+            </div>
+
+            <!-- Tab Content: With Depicts -->
+            <div id="tab-with-depicts" class="tab-content">
+                <table class="data-table" id="table-with-depicts">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>File Name</th>
+                            <th>Depicts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+                <p id="empty-with" class="empty-message hidden">No files have depicts metadata.</p>
+            </div>
+        </section>
+
         <!-- History Dashboard Section -->
         <section id="history-section" class="history-section">
             <div class="history-header">
@@ -207,53 +256,6 @@
             </p>
         </section>
 
-        <!-- Results Section -->
-        <section id="results-section" class="results-section hidden">
-            <!-- Tabs -->
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="without-depicts">
-                    <i class="fa-solid fa-list-ul"></i> Files Without Depicts <span id="count-without"
-                        class="badge">0</span>
-                </button>
-                <button class="tab-btn" data-tab="with-depicts">
-                    <i class="fa-solid fa-check-double"></i> Files With Depicts <span id="count-with"
-                        class="badge">0</span>
-                </button>
-            </div>
-
-            <!-- Tab Content: Without Depicts -->
-            <div id="tab-without-depicts" class="tab-content active">
-                <table class="data-table" id="table-without-depicts">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>File Name</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Populated dynamically -->
-                    </tbody>
-                </table>
-                <p id="empty-without" class="empty-message hidden">All files have depicts metadata! 🎉</p>
-            </div>
-
-            <!-- Tab Content: With Depicts -->
-            <div id="tab-with-depicts" class="tab-content">
-                <table class="data-table" id="table-with-depicts">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>File Name</th>
-                            <th>Depicts</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Populated dynamically -->
-                    </tbody>
-                </table>
-                <p id="empty-with" class="empty-message hidden">No files have depicts metadata.</p>
-            </div>
         </section>
 
         <!-- Footer -->
