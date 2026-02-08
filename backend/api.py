@@ -29,19 +29,20 @@ HEADERS = {
 # Simple in-memory cache for QID labels
 _label_cache: Dict[str, str] = {}
 
-# Rate limiting: track last request time
-_last_request_time: float = 0.0
-RATE_LIMIT_DELAY = 0.1  # 100ms between requests
+# Rate limiting disabled - let API handle its own throttling
+# Set to 0 for real-time speed, increase if you get rate limited
+RATE_LIMIT_DELAY = 0.0  # No delay between requests
 
 
 def _rate_limit():
-    """Enforce rate limiting between API calls."""
+    """Enforce rate limiting between API calls (disabled by default)."""
     global _last_request_time
-    current_time = time.time()
-    elapsed = current_time - _last_request_time
-    if elapsed < RATE_LIMIT_DELAY:
-        time.sleep(RATE_LIMIT_DELAY - elapsed)
-    _last_request_time = time.time()
+    if RATE_LIMIT_DELAY > 0:
+        current_time = time.time()
+        elapsed = current_time - _last_request_time
+        if elapsed < RATE_LIMIT_DELAY:
+            time.sleep(RATE_LIMIT_DELAY - elapsed)
+        _last_request_time = time.time()
 
 
 def retry_on_failure(max_retries: int = 3, base_delay: float = 1.0):

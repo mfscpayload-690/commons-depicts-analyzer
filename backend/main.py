@@ -61,8 +61,8 @@ def analyze_category(category_name: str, progress_callback=None) -> dict:
     total = len(files)
     
     for i, file_title in enumerate(files):
-        if progress_callback and i % 10 == 0:
-            progress_callback(f"Checking file {i + 1}/{total}...")
+        if progress_callback:
+            progress_callback(f"Checking file {i + 1}/{total}: {file_title}")
         
         try:
             has_depicts, qids = check_depicts(file_title)
