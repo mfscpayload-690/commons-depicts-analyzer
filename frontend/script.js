@@ -429,11 +429,72 @@ async function loadHistory() {
 }
 
 /**
+ * Show custom delete confirmation modal
+ * @returns {Promise<boolean>} Resolves with user's choice
+ */
+function showDeleteModal(categoryName) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('delete-modal');
+        const categoryNameEl = document.getElementById('modal-category-name');
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+
+        // Set category name
+        categoryNameEl.textContent = `"${categoryName}"`;
+
+        // Show modal
+        modal.classList.remove('hidden');
+
+        // Handle cancel
+        const handleCancel = () => {
+            modal.classList.add('hidden');
+            cleanup();
+            resolve(false);
+        };
+
+        // Handle confirm
+        const handleConfirm = () => {
+            modal.classList.add('hidden');
+            cleanup();
+            resolve(true);
+        };
+
+        // Handle backdrop click
+        const handleBackdropClick = (e) => {
+            if (e.target.classList.contains('modal-backdrop')) {
+                handleCancel();
+            }
+        };
+
+        // Handle escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            }
+        };
+
+        // Cleanup event listeners
+        const cleanup = () => {
+            cancelBtn.removeEventListener('click', handleCancel);
+            confirmBtn.removeEventListener('click', handleConfirm);
+            modal.removeEventListener('click', handleBackdropClick);
+            document.removeEventListener('keydown', handleEscape);
+        };
+
+        // Add event listeners
+        cancelBtn.addEventListener('click', handleCancel);
+        confirmBtn.addEventListener('click', handleConfirm);
+        modal.addEventListener('click', handleBackdropClick);
+        document.addEventListener('keydown', handleEscape);
+    });
+}
+
+/**
  * Delete a category from the database
  */
 async function deleteCategory(categoryName) {
-    // Confirmation dialog
-    const confirmed = confirm(`⚠️ Delete "${categoryName}"?\n\nThis will permanently remove all files for this category from your local database.\n\nThis action cannot be undone.`);
+    // Show custom confirmation modal
+    const confirmed = await showDeleteModal(categoryName);
 
     if (!confirmed) {
         return;
@@ -462,3 +523,7 @@ async function deleteCategory(categoryName) {
         console.error('Failed to delete category:', error);
     }
 }
+
+// Make functions globally accessible for inline onclick handlers
+window.deleteCategory = deleteCategory;
+window.reanalyzeCategory = reanalyzeCategory;
