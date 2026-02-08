@@ -491,6 +491,153 @@ function updateHistorySummary(categories) {
     document.getElementById('history-avg-coverage').textContent = avgCoverage + '%';
 }
 
+// Store history data for filtering/sorting
+let historyData = [];
+
+/**
+ * Get coverage percentage for a category
+ */
+function getCoveragePercent(category) {
+    const totalFiles = category.total_files || 0;
+    const withDepicts = category.with_depicts || 0;
+    return totalFiles > 0 ? Math.round((withDepicts / totalFiles) * 100) : 0;
+}
+
+/**
+ * Sort history data
+ */
+function sortHistoryData(data, sortBy) {
+    const sorted = [...data];
+    switch (sortBy) {
+        case 'name-asc':
+            sorted.sort((a, b) => a.category.localeCompare(b.category));
+            break;
+        case 'name-desc':
+            sorted.sort((a, b) => b.category.localeCompare(a.category));
+            break;
+        case 'coverage-desc':
+            sorted.sort((a, b) => getCoveragePercent(b) - getCoveragePercent(a));
+            break;
+        case 'coverage-asc':
+            sorted.sort((a, b) => getCoveragePercent(a) - getCoveragePercent(b));
+            break;
+        case 'files-desc':
+            sorted.sort((a, b) => (b.total_files || 0) - (a.total_files || 0));
+            break;
+        case 'files-asc':
+            sorted.sort((a, b) => (a.total_files || 0) - (b.total_files || 0));
+            break;
+        default:
+            sorted.sort((a, b) => a.category.localeCompare(b.category));
+    }
+    return sorted;
+}
+
+/**
+ * Filter history data
+ */
+function filterHistoryData(data, filterType, searchTerm) {
+    let filtered = [...data];
+
+    // Apply coverage filter
+    if (filterType !== 'all') {
+        filtered = filtered.filter(cat => {
+            const coverage = getCoveragePercent(cat);
+            switch (filterType) {
+                case 'high': return coverage >= 70;
+                case 'medium': return coverage >= 30 && coverage < 70;
+                case 'low': return coverage < 30;
+                default: return true;
+            }
+        });
+    }
+
+    // Apply search filter
+    if (searchTerm && searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
+        filtered = filtered.filter(cat =>
+            cat.category.toLowerCase().includes(term)
+        );
+    }
+
+    return filtered;
+}
+
+/**
+ * Render history cards based on current filters
+ */
+function renderHistoryCards() {
+    const grid = document.getElementById('history-grid');
+    const emptyState = document.getElementById('history-empty');
+    const resultsCount = document.getElementById('history-results-count');
+
+    const sortBy = document.getElementById('history-sort')?.value || 'name-asc';
+    const filterType = document.getElementById('history-filter')?.value || 'all';
+    const searchTerm = document.getElementById('history-search')?.value || '';
+
+    // Apply filter and sort
+    let processed = filterHistoryData(historyData, filterType, searchTerm);
+    processed = sortHistoryData(processed, sortBy);
+
+    // Clear grid
+    grid.innerHTML = '';
+
+    if (historyData.length === 0) {
+        emptyState.classList.remove('hidden');
+        grid.classList.add('hidden');
+        if (resultsCount) resultsCount.textContent = '';
+    } else if (processed.length === 0) {
+        emptyState.classList.add('hidden');
+        grid.classList.remove('hidden');
+        grid.innerHTML = '<p class="history-empty"><i class="fa-solid fa-filter-circle-xmark"></i> No categories match your filters</p>';
+        if (resultsCount) resultsCount.textContent = `Showing 0 of ${historyData.length} categories`;
+    } else {
+        emptyState.classList.add('hidden');
+        grid.classList.remove('hidden');
+
+        // Update results count
+        if (resultsCount) {
+            if (processed.length === historyData.length) {
+                resultsCount.textContent = `Showing all ${historyData.length} categories`;
+            } else {
+                resultsCount.textContent = `Showing ${processed.length} of ${historyData.length} categories`;
+            }
+        }
+
+        // Create cards
+        processed.forEach(category => {
+            const card = createHistoryCard(category);
+            grid.appendChild(card);
+        });
+    }
+}
+
+/**
+ * Initialize filter/sort controls
+ */
+function initHistoryControls() {
+    const sortSelect = document.getElementById('history-sort');
+    const filterSelect = document.getElementById('history-filter');
+    const searchInput = document.getElementById('history-search');
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', renderHistoryCards);
+    }
+
+    if (filterSelect) {
+        filterSelect.addEventListener('change', renderHistoryCards);
+    }
+
+    if (searchInput) {
+        // Debounce search input
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(renderHistoryCards, 300);
+        });
+    }
+}
+
 /**
  * Load and display history
  */
@@ -507,28 +654,17 @@ async function loadHistory() {
 
     try {
         const data = await fetchHistory();
-        const categories = data.categories || [];
+        historyData = data.categories || [];
 
-        // Clear grid
-        grid.innerHTML = '';
+        // Update summary with all data
+        updateHistorySummary(historyData);
 
-        if (categories.length === 0) {
-            emptyState.classList.remove('hidden');
-            grid.classList.add('hidden');
-            updateHistorySummary([]);
-        } else {
-            emptyState.classList.add('hidden');
-            grid.classList.remove('hidden');
+        // Render with current filters
+        renderHistoryCards();
 
-            // Update summary
-            updateHistorySummary(categories);
+        // Initialize controls (only once)
+        initHistoryControls();
 
-            // Create cards
-            categories.forEach(category => {
-                const card = createHistoryCard(category);
-                grid.appendChild(card);
-            });
-        }
     } catch (error) {
         console.error('Failed to load history:', error);
         grid.innerHTML = '<p class="history-empty"><i class="fa-solid fa-exclamation-triangle"></i> Failed to load history</p>';

@@ -770,6 +770,116 @@ a:visited {
     font-size: var(--font-size-lg);
 }
 
+/* History Filter Controls */
+.history-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    justify-content: space-between;
+    align-items: center;
+}
+
+.control-group {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.search-control {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.search-control i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.history-search-input {
+    width: 100%;
+    padding: var(--space-sm) var(--space-sm) var(--space-sm) 36px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.history-search-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.15);
+}
+
+.history-search-input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.select-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.select-control label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.history-select {
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    min-width: 140px;
+    transition: border-color 0.2s;
+}
+
+.history-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.history-select:hover {
+    border-color: var(--color-primary);
+}
+
+.history-results-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-sm);
+}
+
+.history-results-count:empty {
+    display: none;
+}
+
+/* Dark mode overrides for controls */
+[data-theme="dark"] .history-search-input {
+    background: #1e2126;
+    border-color: var(--color-border);
+}
+
+[data-theme="dark"] .history-select {
+    background: #1e2126;
+    border-color: var(--color-border);
+}
+
 /* History Grid */
 .history-grid {
     display: grid;

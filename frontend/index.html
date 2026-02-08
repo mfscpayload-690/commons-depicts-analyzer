@@ -161,6 +161,42 @@
                 </div>
             </div>
 
+            <!-- Filter/Sort Controls -->
+            <div class="history-controls">
+                <div class="control-group">
+                    <div class="search-control">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="history-search" placeholder="Search categories..."
+                            class="history-search-input">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <div class="select-control">
+                        <label for="history-sort"><i class="fa-solid fa-sort"></i> Sort:</label>
+                        <select id="history-sort" class="history-select">
+                            <option value="name-asc">Name (A→Z)</option>
+                            <option value="name-desc">Name (Z→A)</option>
+                            <option value="coverage-desc">Coverage (High→Low)</option>
+                            <option value="coverage-asc">Coverage (Low→High)</option>
+                            <option value="files-desc">Files (Most)</option>
+                            <option value="files-asc">Files (Least)</option>
+                        </select>
+                    </div>
+                    <div class="select-control">
+                        <label for="history-filter"><i class="fa-solid fa-filter"></i> Filter:</label>
+                        <select id="history-filter" class="history-select">
+                            <option value="all">All Categories</option>
+                            <option value="high">High Coverage (>70%)</option>
+                            <option value="medium">Medium Coverage (30-70%)</option>
+                            <option value="low">Low Coverage (<30%)< /option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results count -->
+            <div class="history-results-count" id="history-results-count"></div>
+
             <!-- History Cards Grid -->
             <div class="history-grid" id="history-grid">
                 <!-- Populated dynamically -->
