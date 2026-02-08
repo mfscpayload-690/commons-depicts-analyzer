@@ -186,6 +186,33 @@ def api_history():
     })
 
 
+@app.route("/api/category/<path:category>", methods=["DELETE"])
+def api_delete_category(category):
+    """
+    Delete a category and all its files from the database.
+    
+    Args:
+        category: Category name to delete
+    """
+    # Normalize category name
+    if not category.startswith("Category:"):
+        category = f"Category:{category}"
+    
+    # Check if category exists
+    stats = get_statistics(category)
+    if stats["total"] == 0:
+        return jsonify({"error": "Category not found in database"}), 404
+    
+    # Delete the category
+    clear_category(category)
+    
+    return jsonify({
+        "success": True,
+        "message": f"Deleted {stats['total']} files from {category}",
+        "deleted_files": stats["total"]
+    })
+
+
 # ============ CLI Mode ============
 
 def cli_main():

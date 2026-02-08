@@ -269,10 +269,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Focus input on load
     elements.categoryInput.focus();
-    
+
     // Load history on page load
     loadHistory();
-    
+
     // Refresh history button
     const refreshBtn = document.getElementById('refresh-history-btn');
     if (refreshBtn) {
@@ -309,10 +309,10 @@ function createHistoryCard(category) {
     const withoutDepicts = totalFiles - withDepicts;
     const coverage = totalFiles > 0 ? Math.round((withDepicts / totalFiles) * 100) : 0;
     const coverageLevel = getCoverageLevel(coverage);
-    
+
     // Format category name (remove "Category:" prefix for display)
     const displayName = category.category.replace('Category:', '');
-    
+
     const card = document.createElement('div');
     card.className = 'history-card';
     card.innerHTML = `
@@ -348,9 +348,12 @@ function createHistoryCard(category) {
             <button class="history-card-action" onclick="reanalyzeCategory('${escapeHtml(displayName)}')" title="Re-analyze">
                 <i class="fa-solid fa-arrows-rotate"></i> Re-analyze
             </button>
+            <button class="history-card-action danger" onclick="deleteCategory('${escapeHtml(displayName)}')" title="Delete from database">
+                <i class="fa-solid fa-trash"></i> Delete
+            </button>
         </div>
     `;
-    
+
     return card;
 }
 
@@ -369,7 +372,7 @@ function updateHistorySummary(categories) {
     const totalFiles = categories.reduce((sum, c) => sum + (c.total_files || 0), 0);
     const totalWithDepicts = categories.reduce((sum, c) => sum + (c.with_depicts || 0), 0);
     const avgCoverage = totalFiles > 0 ? Math.round((totalWithDepicts / totalFiles) * 100) : 0;
-    
+
     document.getElementById('history-total-files').textContent = totalFiles;
     document.getElementById('history-total-categories').textContent = categories.length;
     document.getElementById('history-avg-coverage').textContent = avgCoverage + '%';
@@ -382,20 +385,20 @@ async function loadHistory() {
     const grid = document.getElementById('history-grid');
     const emptyState = document.getElementById('history-empty');
     const refreshBtn = document.getElementById('refresh-history-btn');
-    
+
     // Show loading state
     if (refreshBtn) {
         refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
         refreshBtn.disabled = true;
     }
-    
+
     try {
         const data = await fetchHistory();
         const categories = data.categories || [];
-        
+
         // Clear grid
         grid.innerHTML = '';
-        
+
         if (categories.length === 0) {
             emptyState.classList.remove('hidden');
             grid.classList.add('hidden');
@@ -403,10 +406,10 @@ async function loadHistory() {
         } else {
             emptyState.classList.add('hidden');
             grid.classList.remove('hidden');
-            
+
             // Update summary
             updateHistorySummary(categories);
-            
+
             // Create cards
             categories.forEach(category => {
                 const card = createHistoryCard(category);
@@ -422,5 +425,40 @@ async function loadHistory() {
             refreshBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh';
             refreshBtn.disabled = false;
         }
+    }
+}
+
+/**
+ * Delete a category from the database
+ */
+async function deleteCategory(categoryName) {
+    // Confirmation dialog
+    const confirmed = confirm(`⚠️ Delete "${categoryName}"?\n\nThis will permanently remove all files for this category from your local database.\n\nThis action cannot be undone.`);
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/category/${encodeURIComponent(categoryName)}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Delete failed');
+        }
+
+        // Show success message
+        showStatus(`✓ Deleted ${data.deleted_files} files from "${categoryName}"`, 'success');
+        setTimeout(hideStatus, 3000);
+
+        // Refresh the history
+        loadHistory();
+
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+        console.error('Failed to delete category:', error);
     }
 }
