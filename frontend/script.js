@@ -45,6 +45,16 @@ const SUGGESTION_DEBOUNCE_MS = 250;
 let suggestionItems = [];
 let activeSuggestionIndex = -1;
 let suggestionTimeout;
+let progressTimer;
+let progressStepTimer;
+let progressValue = 0;
+const progressSteps = [
+    'Warming up Wikimedia Commons API',
+    'Fetching files from the category',
+    'Checking depicts statements',
+    'Resolving labels from Wikidata',
+    'Finalizing results'
+];
 
 // ============ API Functions ============
 
@@ -237,6 +247,67 @@ function setLoading(isLoading) {
         elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
     } else {
         elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze';
+    }
+}
+
+function startProgress() {
+    const progress = document.getElementById('progress');
+    const bar = document.getElementById('progress-bar');
+    const percent = document.getElementById('progress-percent');
+    const label = document.getElementById('progress-label');
+    const detail = document.getElementById('progress-detail');
+
+    if (!progress || !bar || !percent || !label || !detail) return;
+
+    progressValue = 6;
+    label.textContent = 'Analyzing category';
+    detail.textContent = progressSteps[0];
+    percent.textContent = `${progressValue}%`;
+    bar.style.width = `${progressValue}%`;
+
+    progress.classList.remove('hidden');
+
+    let stepIndex = 0;
+
+    clearInterval(progressTimer);
+    clearInterval(progressStepTimer);
+
+    progressTimer = setInterval(() => {
+        if (progressValue < 90) {
+            progressValue += Math.floor(Math.random() * 4) + 1;
+            if (progressValue > 90) progressValue = 90;
+            percent.textContent = `${progressValue}%`;
+            bar.style.width = `${progressValue}%`;
+        }
+    }, 500);
+
+    progressStepTimer = setInterval(() => {
+        stepIndex = (stepIndex + 1) % progressSteps.length;
+        detail.textContent = progressSteps[stepIndex];
+    }, 2200);
+}
+
+function stopProgress(success = true) {
+    const progress = document.getElementById('progress');
+    const bar = document.getElementById('progress-bar');
+    const percent = document.getElementById('progress-percent');
+    const detail = document.getElementById('progress-detail');
+
+    if (!progress || !bar || !percent || !detail) return;
+
+    clearInterval(progressTimer);
+    clearInterval(progressStepTimer);
+
+    if (success) {
+        progressValue = 100;
+        percent.textContent = '100%';
+        bar.style.width = '100%';
+        detail.textContent = 'Done — results are ready';
+        setTimeout(() => {
+            progress.classList.add('hidden');
+        }, 1200);
+    } else {
+        progress.classList.add('hidden');
     }
 }
 
@@ -482,6 +553,7 @@ async function handleSubmit(event) {
 
     setLoading(true);
     showStatus(`Analyzing "${category}"... This may take a moment for large categories.`, 'loading');
+    startProgress();
 
     // Hide previous results
     elements.statisticsSection.classList.add('hidden');
@@ -497,9 +569,11 @@ async function handleSubmit(event) {
 
         showStatus(`Analysis complete! Found ${result.statistics.total} files.`, 'success');
         setTimeout(hideStatus, 3000);
+        stopProgress(true);
 
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
+        stopProgress(false);
     } finally {
         setLoading(false);
     }

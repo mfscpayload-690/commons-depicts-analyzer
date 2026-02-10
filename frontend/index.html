@@ -115,6 +115,18 @@
         <!-- Status Message -->
         <div id="status-message" class="status-message hidden"></div>
 
+        <!-- Progress Bar -->
+        <div id="progress" class="progress hidden" role="status" aria-live="polite">
+            <div class="progress-header">
+                <span id="progress-label" class="progress-label">Analyzing...</span>
+                <span id="progress-percent" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <div id="progress-detail" class="progress-detail">Warming up Wikimedia Commons API</div>
+        </div>
+
         <!-- Statistics Section -->
         <section id="statistics-section" class="statistics-section hidden">
             <h2><i class="fa-solid fa-chart-pie"></i> Statistics</h2>
