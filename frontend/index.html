@@ -95,6 +95,8 @@
                     <input type="text" id="category-input" class="search-input"
                         placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
                         autocomplete="off" required>
+                    <!-- Autocomplete Dropdown -->
+                    <ul id="suggestions-list" class="suggestions-list hidden"></ul>
                 </div>
                 <button type="submit" id="analyze-btn" class="btn btn-primary">
                     <i class="fa-solid fa-bolt"></i> Analyze
@@ -105,12 +107,26 @@
             </p>
         </section>
 
+        <!-- Analysis History Section -->
+        <section id="history-section" class="history-section hidden">
+            <div class="section-header">
+                <h2><i class="fa-solid fa-clock-rotate-left"></i> Analysis History</h2>
+                <button id="refresh-history-btn" class="btn btn-sm btn-outline">
+                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+            </div>
+            <div id="history-grid" class="history-grid">
+                <!-- History cards populated here -->
+            </div>
+            
+        </section>
+
         <!-- Status Message -->
         <div id="status-message" class="status-message hidden"></div>
 
         <!-- Statistics Section -->
         <section id="statistics-section" class="statistics-section hidden">
-            <h2><i class="fa-solid fa-chart-pie"></i> Statistics</h2>
+            <h2><i class="fa-solid fa-chart-pie"></i> Current Analysis</h2>
             <div class="stats-grid">
                 <div class="stat-card">
                     <span class="stat-icon"><i class="fa-solid fa-images"></i></span>
