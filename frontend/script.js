@@ -45,16 +45,7 @@ const SUGGESTION_DEBOUNCE_MS = 250;
 let suggestionItems = [];
 let activeSuggestionIndex = -1;
 let suggestionTimeout;
-let progressTimer;
-let progressStepTimer;
-let progressValue = 0;
-const progressSteps = [
-    'Warming up Wikimedia Commons API',
-    'Fetching files from the category',
-    'Checking depicts statements',
-    'Resolving labels from Wikidata',
-    'Finalizing results'
-];
+let activeJobId = null;
 
 // ============ API Functions ============
 
@@ -76,6 +67,61 @@ async function analyzeCategory(category) {
 
     if (!response.ok) {
         throw new Error(data.error || 'Analysis failed');
+    }
+
+    return data;
+}
+
+/**
+ * Start an async analysis job
+ * @param {string} category - Category name
+ * @returns {Promise<Object>} Job response
+ */
+async function startAnalysisJob(category) {
+    const response = await fetch('/api/analyze?async=1', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to start analysis');
+    }
+
+    return data;
+}
+
+/**
+ * Fetch analysis progress
+ * @param {string} jobId - Job ID
+ * @returns {Promise<Object>} Progress info
+ */
+async function fetchProgress(jobId) {
+    const response = await fetch(`/api/progress/${encodeURIComponent(jobId)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch progress');
+    }
+
+    return data;
+}
+
+/**
+ * Fetch results for a category
+ * @param {string} category - Category name
+ * @returns {Promise<Object>} Analysis results
+ */
+async function fetchResults(category) {
+    const response = await fetch(`/api/results/${encodeURIComponent(category)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch results');
     }
 
     return data;
@@ -250,7 +296,7 @@ function setLoading(isLoading) {
     }
 }
 
-function startProgress() {
+function showProgress(percentValue, labelText, detailText) {
     const progress = document.getElementById('progress');
     const bar = document.getElementById('progress-bar');
     const percent = document.getElementById('progress-percent');
@@ -259,56 +305,65 @@ function startProgress() {
 
     if (!progress || !bar || !percent || !label || !detail) return;
 
-    progressValue = 6;
-    label.textContent = 'Analyzing category';
-    detail.textContent = progressSteps[0];
-    percent.textContent = `${progressValue}%`;
-    bar.style.width = `${progressValue}%`;
+    const safePercent = Math.max(0, Math.min(100, Math.round(percentValue)));
+    label.textContent = labelText || 'Analyzing category';
+    detail.textContent = detailText || '';
+    percent.textContent = `${safePercent}%`;
+    bar.style.width = `${safePercent}%`;
 
     progress.classList.remove('hidden');
-
-    let stepIndex = 0;
-
-    clearInterval(progressTimer);
-    clearInterval(progressStepTimer);
-
-    progressTimer = setInterval(() => {
-        if (progressValue < 90) {
-            progressValue += Math.floor(Math.random() * 4) + 1;
-            if (progressValue > 90) progressValue = 90;
-            percent.textContent = `${progressValue}%`;
-            bar.style.width = `${progressValue}%`;
-        }
-    }, 500);
-
-    progressStepTimer = setInterval(() => {
-        stepIndex = (stepIndex + 1) % progressSteps.length;
-        detail.textContent = progressSteps[stepIndex];
-    }, 2200);
 }
 
-function stopProgress(success = true) {
+function completeProgress() {
+    showProgress(100, 'Completed', 'Done — results are ready');
+    setTimeout(() => {
+        const progress = document.getElementById('progress');
+        if (progress) progress.classList.add('hidden');
+    }, 1200);
+}
+
+function hideProgress() {
     const progress = document.getElementById('progress');
-    const bar = document.getElementById('progress-bar');
-    const percent = document.getElementById('progress-percent');
-    const detail = document.getElementById('progress-detail');
+    if (progress) progress.classList.add('hidden');
+}
 
-    if (!progress || !bar || !percent || !detail) return;
+function updateProgressFromStatus(status) {
+    const phaseLabels = {
+        queued: 'Queued',
+        fetching: 'Fetching files',
+        checking: 'Checking files',
+        finalizing: 'Finalizing results',
+        done: 'Completed',
+        error: 'Error'
+    };
 
-    clearInterval(progressTimer);
-    clearInterval(progressStepTimer);
+    const label = phaseLabels[status.phase] || 'Analyzing category';
+    let detail = status.message || '';
 
-    if (success) {
-        progressValue = 100;
-        percent.textContent = '100%';
-        bar.style.width = '100%';
-        detail.textContent = 'Done — results are ready';
-        setTimeout(() => {
-            progress.classList.add('hidden');
-        }, 1200);
-    } else {
-        progress.classList.add('hidden');
+    if (status.total) {
+        detail = `Processed ${status.processed || 0} of ${status.total} files`;
     }
+
+    showProgress(status.percent || 0, label, detail);
+}
+
+async function pollProgress(jobId, category) {
+    while (jobId === activeJobId) {
+        const status = await fetchProgress(jobId);
+        updateProgressFromStatus(status);
+
+        if (status.status === 'done') {
+            return fetchResults(category);
+        }
+
+        if (status.status === 'error') {
+            throw new Error(status.error || 'Analysis failed');
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+
+    throw new Error('Analysis canceled');
 }
 
 // ============ Suggestions + History ============
@@ -553,14 +608,16 @@ async function handleSubmit(event) {
 
     setLoading(true);
     showStatus(`Analyzing "${category}"... This may take a moment for large categories.`, 'loading');
-    startProgress();
+    showProgress(4, 'Queued', 'Preparing analysis');
 
     // Hide previous results
     elements.statisticsSection.classList.add('hidden');
     elements.resultsSection.classList.add('hidden');
 
     try {
-        const result = await analyzeCategory(category);
+        const job = await startAnalysisJob(category);
+        activeJobId = job.job_id;
+        const result = await pollProgress(activeJobId, category);
 
         hideStatus();
         updateStatistics(result.statistics);
@@ -569,11 +626,11 @@ async function handleSubmit(event) {
 
         showStatus(`Analysis complete! Found ${result.statistics.total} files.`, 'success');
         setTimeout(hideStatus, 3000);
-        stopProgress(true);
+        completeProgress();
 
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
-        stopProgress(false);
+        hideProgress();
     } finally {
         setLoading(false);
     }
