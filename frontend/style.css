@@ -707,6 +707,17 @@ a:visited {
     outline-offset: 2px;
 }
 
+.btn-stop {
+    background-color: #d33;
+    border-color: #d33;
+    color: white;
+}
+
+.btn-stop:hover:not(:disabled) {
+    background-color: #b32424;
+    border-color: #b32424;
+}
+
 /* ============ Status Message ============ */
 .status-message {
     padding: var(--space-md);

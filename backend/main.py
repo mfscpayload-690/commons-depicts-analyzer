@@ -83,7 +83,7 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
         if progress_callback:
             progress_callback(f"Checking file {i + 1}/{total}: {file_title}")
 
-        if progress_hook and (i % 5 == 0 or i == total - 1):
+        if progress_hook:
             progress_hook({
                 "phase": "checking",
                 "message": "Checking depicts statements",
@@ -129,6 +129,9 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
 
 # ============ Background Analysis Jobs ============
 
+class _AnalysisCancelled(Exception):
+    """Raised when a job is cancelled mid-flight."""
+
 analysis_jobs = {}
 analysis_lock = threading.Lock()
 
@@ -155,13 +158,41 @@ def _compute_percent(job: dict) -> int:
     return 0
 
 
+def is_job_cancelled(job_id: str) -> bool:
+    with analysis_lock:
+        job = analysis_jobs.get(job_id, {})
+        return job.get("status") == "cancelled"
+
+
+def cancel_job(job_id: str) -> bool:
+    with analysis_lock:
+        job = analysis_jobs.get(job_id)
+        if not job:
+            return False
+        if job.get("status") in ("done", "error", "cancelled"):
+            return False
+        job["status"] = "cancelled"
+        job["phase"] = "cancelled"
+        job["message"] = "Cancelled by user"
+        job["updated_at"] = time.time()
+        return True
+
+
 def _run_analysis_job(job_id: str, category: str) -> None:
     def hook(info: dict) -> None:
+        if is_job_cancelled(job_id):
+            raise _AnalysisCancelled()
         _set_job(job_id, **info)
 
     _set_job(job_id, status="running", phase="fetching", message="Starting analysis")
 
-    result = analyze_category(category, progress_hook=hook)
+    try:
+        result = analyze_category(category, progress_hook=hook)
+    except _AnalysisCancelled:
+        return
+
+    if is_job_cancelled(job_id):
+        return
 
     if "error" in result:
         _set_job(job_id, status="error", error=result["error"], phase="error")
@@ -289,6 +320,15 @@ def api_progress(job_id):
     }
 
     return jsonify(payload)
+
+
+@app.route("/api/cancel/<job_id>", methods=["POST"])
+def api_cancel(job_id):
+    """Cancel a running analysis job."""
+    ok = cancel_job(job_id)
+    if not ok:
+        return jsonify({"error": "Job not found or already finished"}), 404
+    return jsonify({"status": "cancelled", "job_id": job_id})
 
 
 @app.route("/api/suggest", methods=["GET"])

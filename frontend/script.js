@@ -287,12 +287,17 @@ function escapeHtml(text) {
  * @param {boolean} isLoading - Whether loading
  */
 function setLoading(isLoading) {
-    elements.analyzeBtn.disabled = isLoading;
     elements.categoryInput.disabled = isLoading;
     if (isLoading) {
-        elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+        elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop';
+        elements.analyzeBtn.classList.add('btn-stop');
+        elements.analyzeBtn.disabled = false;
+        elements.analyzeBtn.onclick = (e) => { e.preventDefault(); cancelAnalysis(); };
     } else {
         elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze';
+        elements.analyzeBtn.classList.remove('btn-stop');
+        elements.analyzeBtn.disabled = false;
+        elements.analyzeBtn.onclick = null;
     }
 }
 
@@ -328,16 +333,19 @@ function hideProgress() {
 }
 
 function updateProgressFromStatus(status) {
+    const category = status.category || '';
+    const catDisplay = category.replace(/^Category:/i, '');
+
     const phaseLabels = {
-        queued: 'Queued',
-        fetching: 'Fetching files',
-        checking: 'Checking files',
-        finalizing: 'Finalizing results',
+        queued: `Analyzing "${catDisplay}"`,
+        fetching: `Analyzing "${catDisplay}" — fetching files`,
+        checking: `Analyzing "${catDisplay}"`,
+        finalizing: `Analyzing "${catDisplay}" — finalizing`,
         done: 'Completed',
         error: 'Error'
     };
 
-    const label = phaseLabels[status.phase] || 'Analyzing category';
+    const label = phaseLabels[status.phase] || `Analyzing "${catDisplay}"`;
     let detail = status.message || '';
 
     if (status.total) {
@@ -358,6 +366,10 @@ async function pollProgress(jobId, category) {
 
         if (status.status === 'error') {
             throw new Error(status.error || 'Analysis failed');
+        }
+
+        if (status.status === 'cancelled') {
+            throw new Error('Analysis canceled');
         }
 
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -597,6 +609,18 @@ function initTabs() {
 
 // ============ Event Handlers ============
 
+async function cancelAnalysis() {
+    if (!activeJobId) return;
+    try {
+        await fetch(`/api/cancel/${encodeURIComponent(activeJobId)}`, { method: 'POST' });
+    } catch (_) { /* ignore */ }
+    activeJobId = null;
+    hideProgress();
+    setLoading(false);
+    showStatus('Analysis stopped.', 'error');
+    setTimeout(hideStatus, 2500);
+}
+
 async function handleSubmit(event) {
     event.preventDefault();
 
@@ -607,8 +631,8 @@ async function handleSubmit(event) {
     }
 
     setLoading(true);
-    showStatus(`Analyzing "${category}"... This may take a moment for large categories.`, 'loading');
-    showProgress(4, 'Queued', 'Preparing analysis');
+    hideStatus();
+    showProgress(4, `Analyzing "${category}"`, 'Preparing analysis');
 
     // Hide previous results
     elements.statisticsSection.classList.add('hidden');
@@ -619,7 +643,6 @@ async function handleSubmit(event) {
         activeJobId = job.job_id;
         const result = await pollProgress(activeJobId, category);
 
-        hideStatus();
         updateStatistics(result.statistics);
         populateTables(result.files);
         saveSearchHistory(category);
@@ -629,6 +652,7 @@ async function handleSubmit(event) {
         completeProgress();
 
     } catch (error) {
+        if (error.message === 'Analysis canceled') return;
         showStatus(`Error: ${error.message}`, 'error');
         hideProgress();
     } finally {
