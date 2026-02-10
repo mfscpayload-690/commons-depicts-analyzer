@@ -12,7 +12,7 @@ import sys
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from api import fetch_category_files, check_depicts, resolve_labels
+from api import fetch_category_files, check_depicts, resolve_labels, fetch_category_suggestions
 from database import (init_db, insert_file, get_files_by_category, 
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
 
@@ -155,6 +155,25 @@ def api_results(category):
         "statistics": stats,
         "files": files_data
     })
+
+
+@app.route("/api/suggest", methods=["GET"])
+def api_suggest():
+    """
+    Suggest Commons categories by prefix.
+
+    Query params: ?query=partial
+    Returns: {"suggestions": ["Cats", "Cathedrals", ...]}
+    """
+    query = request.args.get("query", "").strip()
+    if not query:
+        return jsonify({"suggestions": []})
+
+    try:
+        suggestions = fetch_category_suggestions(query)
+        return jsonify({"suggestions": suggestions})
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch suggestions: {str(e)}"}), 400
 
 
 @app.route("/api/verify/<path:category>", methods=["GET"])

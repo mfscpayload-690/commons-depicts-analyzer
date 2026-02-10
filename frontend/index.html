@@ -95,11 +95,18 @@
                     <input type="text" id="category-input" class="search-input"
                         placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
                         autocomplete="off" required>
+                    <div id="suggestions" class="suggestions hidden" role="listbox"
+                        aria-label="Category suggestions"></div>
                 </div>
                 <button type="submit" id="analyze-btn" class="btn btn-primary">
                     <i class="fa-solid fa-bolt"></i> Analyze
                 </button>
             </form>
+            <div id="search-history" class="search-history hidden">
+                <span class="history-label"><i class="fa-solid fa-clock"></i> Recent:</span>
+                <div id="history-chips" class="history-chips"></div>
+                <button type="button" id="history-clear" class="history-clear" title="Clear history">Clear</button>
+            </div>
             <p class="search-hint">
                 Enter a category name without the "Category:" prefix
             </p>
@@ -237,7 +244,7 @@
                             <option value="all">All Categories</option>
                             <option value="high">High Coverage (>70%)</option>
                             <option value="medium">Medium Coverage (30-70%)</option>
-                            <option value="low">Low Coverage (<30%)< /option>
+                            <option value="low">Low Coverage (<30%)</option>
                         </select>
                     </div>
                 </div>
@@ -254,8 +261,6 @@
             <p id="history-empty" class="history-empty hidden">
                 <i class="fa-solid fa-inbox"></i> No categories analyzed yet. Start by analyzing a category above!
             </p>
-        </section>
-
         </section>
 
         <!-- Footer -->

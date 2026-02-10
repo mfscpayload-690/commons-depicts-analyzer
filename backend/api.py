@@ -32,6 +32,7 @@ _label_cache: Dict[str, str] = {}
 # Rate limiting disabled - let API handle its own throttling
 # Set to 0 for real-time speed, increase if you get rate limited
 RATE_LIMIT_DELAY = 0.0  # No delay between requests
+_last_request_time = 0.0
 
 
 def _rate_limit():
@@ -104,6 +105,47 @@ def validate_category_exists(category_name: str) -> Tuple[bool, Optional[str]]:
         return (True, None)
     except requests.exceptions.RequestException as e:
         return (False, f"Network error checking category: {str(e)}")
+
+
+@retry_on_failure(max_retries=2, base_delay=0.5)
+def fetch_category_suggestions(query: str, limit: int = 8) -> List[str]:
+    """
+    Fetch category name suggestions from Wikimedia Commons.
+
+    Args:
+        query: Partial category name (without 'Category:' prefix)
+        limit: Max number of suggestions
+
+    Returns:
+        List of category names without the 'Category:' prefix
+    """
+    if not query or len(query.strip()) < 2:
+        return []
+
+    _rate_limit()
+    params = {
+        "action": "query",
+        "list": "prefixsearch",
+        "pssearch": f"Category:{query.strip()}",
+        "psnamespace": 14,
+        "pslimit": str(limit),
+        "format": "json"
+    }
+
+    response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+
+    results = []
+    items = data.get("query", {}).get("prefixsearch", [])
+    for item in items:
+        title = item.get("title", "")
+        if title.startswith("Category:"):
+            title = title[len("Category:"):]
+        if title:
+            results.append(title)
+
+    return results
 
 
 @retry_on_failure(max_retries=3, base_delay=1.0)

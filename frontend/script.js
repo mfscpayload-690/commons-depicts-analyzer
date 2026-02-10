@@ -22,6 +22,11 @@ const elements = {
     statWithDepicts: document.getElementById('stat-with-depicts'),
     statWithoutDepicts: document.getElementById('stat-without-depicts'),
     statCoverage: document.getElementById('stat-coverage'),
+    // Suggestions + history
+    suggestions: document.getElementById('suggestions'),
+    historyWrap: document.getElementById('search-history'),
+    historyChips: document.getElementById('history-chips'),
+    historyClear: document.getElementById('history-clear'),
     // Tables
     tableWithDepicts: document.getElementById('table-with-depicts'),
     tableWithoutDepicts: document.getElementById('table-without-depicts'),
@@ -31,6 +36,15 @@ const elements = {
     countWith: document.getElementById('count-with'),
     countWithout: document.getElementById('count-without'),
 };
+
+const SEARCH_HISTORY_KEY = 'categorySearchHistory';
+const SEARCH_HISTORY_LIMIT = 8;
+const SUGGESTION_LIMIT = 8;
+const SUGGESTION_DEBOUNCE_MS = 250;
+
+let suggestionItems = [];
+let activeSuggestionIndex = -1;
+let suggestionTimeout;
 
 // ============ API Functions ============
 
@@ -55,6 +69,22 @@ async function analyzeCategory(category) {
     }
 
     return data;
+}
+
+/**
+ * Fetch category suggestions
+ * @param {string} query - Partial category name
+ * @returns {Promise<Array>} Suggestions
+ */
+async function fetchSuggestions(query) {
+    const response = await fetch(`/api/suggest?query=${encodeURIComponent(query)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch suggestions');
+    }
+
+    return (data.suggestions || []).slice(0, SUGGESTION_LIMIT);
 }
 
 // ============ UI Functions ============
@@ -92,6 +122,15 @@ function updateStatistics(stats) {
     elements.statCoverage.textContent = `${coverage}%`;
 
     elements.statisticsSection.classList.remove('hidden');
+}
+
+/**
+ * Normalize category input
+ * @param {string} value - Raw input
+ * @returns {string} Normalized category name
+ */
+function normalizeCategoryInput(value) {
+    return value.replace(/^Category:/i, '').trim();
 }
 
 /**
@@ -201,6 +240,210 @@ function setLoading(isLoading) {
     }
 }
 
+// ============ Suggestions + History ============
+
+function getSearchHistory() {
+    const stored = localStorage.getItem(SEARCH_HISTORY_KEY);
+    if (!stored) return [];
+    try {
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function renderSearchHistory(history) {
+    if (!elements.historyWrap || !elements.historyChips) return;
+
+    elements.historyChips.innerHTML = '';
+
+    if (!history || history.length === 0) {
+        elements.historyWrap.classList.add('hidden');
+        return;
+    }
+
+    history.forEach((name) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'history-chip';
+        chip.textContent = name;
+        chip.addEventListener('click', () => {
+            elements.categoryInput.value = name;
+            elements.form.dispatchEvent(new Event('submit'));
+        });
+        elements.historyChips.appendChild(chip);
+    });
+
+    elements.historyWrap.classList.remove('hidden');
+}
+
+function loadSearchHistory() {
+    renderSearchHistory(getSearchHistory());
+}
+
+function saveSearchHistory(category) {
+    const name = normalizeCategoryInput(category);
+    if (!name) return;
+
+    const history = getSearchHistory();
+    const next = [name, ...history.filter((item) => item.toLowerCase() !== name.toLowerCase())];
+    const trimmed = next.slice(0, SEARCH_HISTORY_LIMIT);
+
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(trimmed));
+    renderSearchHistory(trimmed);
+}
+
+function clearSearchHistory() {
+    localStorage.removeItem(SEARCH_HISTORY_KEY);
+    renderSearchHistory([]);
+}
+
+function hideSuggestions() {
+    if (!elements.suggestions) return;
+    elements.suggestions.classList.add('hidden');
+    elements.suggestions.innerHTML = '';
+    suggestionItems = [];
+    activeSuggestionIndex = -1;
+}
+
+function renderSuggestions(items) {
+    if (!elements.suggestions) return;
+
+    elements.suggestions.innerHTML = '';
+    suggestionItems = items || [];
+    activeSuggestionIndex = -1;
+
+    if (!items || items.length === 0) {
+        renderSuggestionsEmpty();
+        return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'suggestions-header';
+    header.textContent = 'Suggested categories';
+    elements.suggestions.appendChild(header);
+
+    items.forEach((item, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'suggestion-item';
+        button.setAttribute('role', 'option');
+        button.dataset.index = String(index);
+        button.innerHTML = `
+            <span class="suggestion-icon"><i class="fa-solid fa-folder"></i></span>
+            <span class="suggestion-prefix">Category</span>
+            <span class="suggestion-text">${escapeHtml(item)}</span>
+        `;
+        button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            selectSuggestion(item);
+        });
+        elements.suggestions.appendChild(button);
+    });
+
+    const hint = document.createElement('div');
+    hint.className = 'suggestions-hint';
+    hint.innerHTML = '<i class="fa-solid fa-keyboard"></i> Use ↑/↓ to navigate, Enter to select';
+    elements.suggestions.appendChild(hint);
+
+    elements.suggestions.classList.remove('hidden');
+}
+
+function renderSuggestionsEmpty() {
+    if (!elements.suggestions) return;
+
+    elements.suggestions.innerHTML = '';
+    suggestionItems = [];
+    activeSuggestionIndex = -1;
+
+    const header = document.createElement('div');
+    header.className = 'suggestions-header';
+    header.textContent = 'Suggested categories';
+    elements.suggestions.appendChild(header);
+
+    const empty = document.createElement('div');
+    empty.className = 'suggestions-empty';
+    empty.innerHTML = '<i class="fa-solid fa-circle-info"></i> No matches found';
+    elements.suggestions.appendChild(empty);
+
+    const hint = document.createElement('div');
+    hint.className = 'suggestions-hint';
+    hint.innerHTML = '<i class="fa-solid fa-keyboard"></i> Use ↑/↓ to navigate, Enter to select';
+    elements.suggestions.appendChild(hint);
+
+    elements.suggestions.classList.remove('hidden');
+}
+
+function setActiveSuggestion(index) {
+    if (!elements.suggestions) return;
+
+    const items = Array.from(elements.suggestions.querySelectorAll('.suggestion-item'));
+    if (items.length === 0) return;
+
+    activeSuggestionIndex = (index + items.length) % items.length;
+    items.forEach((item, i) => {
+        item.classList.toggle('active', i === activeSuggestionIndex);
+    });
+
+    const active = items[activeSuggestionIndex];
+    if (active) {
+        active.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function selectSuggestion(value) {
+    elements.categoryInput.value = value;
+    hideSuggestions();
+    elements.categoryInput.focus();
+}
+
+function initSuggestions() {
+    if (!elements.categoryInput || !elements.suggestions) return;
+
+    elements.categoryInput.addEventListener('input', () => {
+        const query = normalizeCategoryInput(elements.categoryInput.value);
+        if (query.length < 2) {
+            hideSuggestions();
+            return;
+        }
+
+        clearTimeout(suggestionTimeout);
+        suggestionTimeout = setTimeout(async () => {
+            try {
+                const items = await fetchSuggestions(query);
+                renderSuggestions(items);
+            } catch (error) {
+                hideSuggestions();
+            }
+        }, SUGGESTION_DEBOUNCE_MS);
+    });
+
+    elements.categoryInput.addEventListener('keydown', (event) => {
+        if (!elements.suggestions || elements.suggestions.classList.contains('hidden')) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActiveSuggestion(activeSuggestionIndex + 1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActiveSuggestion(activeSuggestionIndex - 1);
+        } else if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+            event.preventDefault();
+            selectSuggestion(suggestionItems[activeSuggestionIndex]);
+        } else if (event.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        const wrapper = elements.categoryInput?.parentElement;
+        if (wrapper && !wrapper.contains(event.target)) {
+            hideSuggestions();
+        }
+    });
+}
+
 // ============ Tab Handling ============
 
 function initTabs() {
@@ -250,6 +493,7 @@ async function handleSubmit(event) {
         hideStatus();
         updateStatistics(result.statistics);
         populateTables(result.files);
+        saveSearchHistory(category);
 
         showStatus(`Analysis complete! Found ${result.statistics.total} files.`, 'success');
         setTimeout(hideStatus, 3000);
@@ -273,11 +517,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load history on page load
     loadHistory();
 
+    // Load search history on page load
+    loadSearchHistory();
+
     // Refresh history button
     const refreshBtn = document.getElementById('refresh-history-btn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', loadHistory);
     }
+
+    if (elements.historyClear) {
+        elements.historyClear.addEventListener('click', clearSearchHistory);
+    }
+
+    initSuggestions();
 
     // Initialize appearance panel
     initAppearancePanel();
