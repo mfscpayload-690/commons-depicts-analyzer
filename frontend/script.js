@@ -45,6 +45,7 @@ const SUGGESTION_DEBOUNCE_MS = 250;
 let suggestionItems = [];
 let activeSuggestionIndex = -1;
 let suggestionTimeout;
+let activeJobId = null;
 
 // ============ API Functions ============
 
@@ -66,6 +67,61 @@ async function analyzeCategory(category) {
 
     if (!response.ok) {
         throw new Error(data.error || 'Analysis failed');
+    }
+
+    return data;
+}
+
+/**
+ * Start an async analysis job
+ * @param {string} category - Category name
+ * @returns {Promise<Object>} Job response
+ */
+async function startAnalysisJob(category) {
+    const response = await fetch('/api/analyze?async=1', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to start analysis');
+    }
+
+    return data;
+}
+
+/**
+ * Fetch analysis progress
+ * @param {string} jobId - Job ID
+ * @returns {Promise<Object>} Progress info
+ */
+async function fetchProgress(jobId) {
+    const response = await fetch(`/api/progress/${encodeURIComponent(jobId)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch progress');
+    }
+
+    return data;
+}
+
+/**
+ * Fetch results for a category
+ * @param {string} category - Category name
+ * @returns {Promise<Object>} Analysis results
+ */
+async function fetchResults(category) {
+    const response = await fetch(`/api/results/${encodeURIComponent(category)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch results');
     }
 
     return data;
@@ -231,13 +287,95 @@ function escapeHtml(text) {
  * @param {boolean} isLoading - Whether loading
  */
 function setLoading(isLoading) {
-    elements.analyzeBtn.disabled = isLoading;
     elements.categoryInput.disabled = isLoading;
     if (isLoading) {
-        elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+        elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop';
+        elements.analyzeBtn.classList.add('btn-stop');
+        elements.analyzeBtn.disabled = false;
+        elements.analyzeBtn.onclick = (e) => { e.preventDefault(); cancelAnalysis(); };
     } else {
         elements.analyzeBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze';
+        elements.analyzeBtn.classList.remove('btn-stop');
+        elements.analyzeBtn.disabled = false;
+        elements.analyzeBtn.onclick = null;
     }
+}
+
+function showProgress(percentValue, labelText, detailText) {
+    const progress = document.getElementById('progress');
+    const bar = document.getElementById('progress-bar');
+    const percent = document.getElementById('progress-percent');
+    const label = document.getElementById('progress-label');
+    const detail = document.getElementById('progress-detail');
+
+    if (!progress || !bar || !percent || !label || !detail) return;
+
+    const safePercent = Math.max(0, Math.min(100, Math.round(percentValue)));
+    label.textContent = labelText || 'Analyzing category';
+    detail.textContent = detailText || '';
+    percent.textContent = `${safePercent}%`;
+    bar.style.width = `${safePercent}%`;
+
+    progress.classList.remove('hidden');
+}
+
+function completeProgress() {
+    showProgress(100, 'Completed', 'Done — results are ready');
+    setTimeout(() => {
+        const progress = document.getElementById('progress');
+        if (progress) progress.classList.add('hidden');
+    }, 1200);
+}
+
+function hideProgress() {
+    const progress = document.getElementById('progress');
+    if (progress) progress.classList.add('hidden');
+}
+
+function updateProgressFromStatus(status) {
+    const category = status.category || '';
+    const catDisplay = category.replace(/^Category:/i, '');
+
+    const phaseLabels = {
+        queued: `Analyzing "${catDisplay}"`,
+        fetching: `Analyzing "${catDisplay}" — fetching files`,
+        checking: `Analyzing "${catDisplay}"`,
+        finalizing: `Analyzing "${catDisplay}" — finalizing`,
+        done: 'Completed',
+        error: 'Error'
+    };
+
+    const label = phaseLabels[status.phase] || `Analyzing "${catDisplay}"`;
+    let detail = status.message || '';
+
+    if (status.total) {
+        detail = `Processed ${status.processed || 0} of ${status.total} files`;
+    }
+
+    showProgress(status.percent || 0, label, detail);
+}
+
+async function pollProgress(jobId, category) {
+    while (jobId === activeJobId) {
+        const status = await fetchProgress(jobId);
+        updateProgressFromStatus(status);
+
+        if (status.status === 'done') {
+            return fetchResults(category);
+        }
+
+        if (status.status === 'error') {
+            throw new Error(status.error || 'Analysis failed');
+        }
+
+        if (status.status === 'cancelled') {
+            throw new Error('Analysis canceled');
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+
+    throw new Error('Analysis canceled');
 }
 
 // ============ Suggestions + History ============
@@ -471,6 +609,18 @@ function initTabs() {
 
 // ============ Event Handlers ============
 
+async function cancelAnalysis() {
+    if (!activeJobId) return;
+    try {
+        await fetch(`/api/cancel/${encodeURIComponent(activeJobId)}`, { method: 'POST' });
+    } catch (_) { /* ignore */ }
+    activeJobId = null;
+    hideProgress();
+    setLoading(false);
+    showStatus('Analysis stopped.', 'error');
+    setTimeout(hideStatus, 2500);
+}
+
 async function handleSubmit(event) {
     event.preventDefault();
 
@@ -481,25 +631,30 @@ async function handleSubmit(event) {
     }
 
     setLoading(true);
-    showStatus(`Analyzing "${category}"... This may take a moment for large categories.`, 'loading');
+    hideStatus();
+    showProgress(4, `Analyzing "${category}"`, 'Preparing analysis');
 
     // Hide previous results
     elements.statisticsSection.classList.add('hidden');
     elements.resultsSection.classList.add('hidden');
 
     try {
-        const result = await analyzeCategory(category);
+        const job = await startAnalysisJob(category);
+        activeJobId = job.job_id;
+        const result = await pollProgress(activeJobId, category);
 
-        hideStatus();
         updateStatistics(result.statistics);
         populateTables(result.files);
         saveSearchHistory(category);
 
         showStatus(`Analysis complete! Found ${result.statistics.total} files.`, 'success');
         setTimeout(hideStatus, 3000);
+        completeProgress();
 
     } catch (error) {
+        if (error.message === 'Analysis canceled') return;
         showStatus(`Error: ${error.message}`, 'error');
+        hideProgress();
     } finally {
         setLoading(false);
     }
