@@ -95,38 +95,41 @@
                     <input type="text" id="category-input" class="search-input"
                         placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
                         autocomplete="off" required>
-                    <!-- Autocomplete Dropdown -->
-                    <ul id="suggestions-list" class="suggestions-list hidden"></ul>
+                    <div id="suggestions" class="suggestions hidden" role="listbox"
+                        aria-label="Category suggestions"></div>
                 </div>
                 <button type="submit" id="analyze-btn" class="btn btn-primary">
                     <i class="fa-solid fa-bolt"></i> Analyze
                 </button>
             </form>
+            <div id="search-history" class="search-history hidden">
+                <span class="history-label"><i class="fa-solid fa-clock"></i> Recent:</span>
+                <div id="history-chips" class="history-chips"></div>
+                <button type="button" id="history-clear" class="history-clear" title="Clear history">Clear</button>
+            </div>
             <p class="search-hint">
                 Enter a category name without the "Category:" prefix
             </p>
         </section>
 
-        <!-- Analysis History Section -->
-        <section id="history-section" class="history-section hidden">
-            <div class="section-header">
-                <h2><i class="fa-solid fa-clock-rotate-left"></i> Analysis History</h2>
-                <button id="refresh-history-btn" class="btn btn-sm btn-outline">
-                    <i class="fa-solid fa-rotate-right"></i> Refresh
-                </button>
-            </div>
-            <div id="history-grid" class="history-grid">
-                <!-- History cards populated here -->
-            </div>
-            
-        </section>
-
         <!-- Status Message -->
         <div id="status-message" class="status-message hidden"></div>
 
+        <!-- Progress Bar -->
+        <div id="progress" class="progress hidden" role="status" aria-live="polite">
+            <div class="progress-header">
+                <span id="progress-label" class="progress-label">Analyzing...</span>
+                <span id="progress-percent" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <div id="progress-detail" class="progress-detail">Warming up Wikimedia Commons API</div>
+        </div>
+
         <!-- Statistics Section -->
         <section id="statistics-section" class="statistics-section hidden">
-            <h2><i class="fa-solid fa-chart-pie"></i> Current Analysis</h2>
+            <h2><i class="fa-solid fa-chart-pie"></i> Statistics</h2>
             <div class="stats-grid">
                 <div class="stat-card">
                     <span class="stat-icon"><i class="fa-solid fa-images"></i></span>
@@ -253,7 +256,7 @@
                             <option value="all">All Categories</option>
                             <option value="high">High Coverage (>70%)</option>
                             <option value="medium">Medium Coverage (30-70%)</option>
-                            <option value="low">Low Coverage (<30%)< /option>
+                            <option value="low">Low Coverage (<30%)</option>
                         </select>
                     </div>
                 </div>
@@ -270,8 +273,6 @@
             <p id="history-empty" class="history-empty hidden">
                 <i class="fa-solid fa-inbox"></i> No categories analyzed yet. Start by analyzing a category above!
             </p>
-        </section>
-
         </section>
 
         <!-- Footer -->
