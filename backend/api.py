@@ -186,7 +186,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
     }
     
     _rate_limit()  # Rate limit
-    response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=90)
+    response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
     response.raise_for_status()
     data = response.json()
     
@@ -208,7 +208,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
     }
     
     _rate_limit()  # Rate limit
-    sdc_response = requests.get(COMMONS_API, params=sdc_params, headers=HEADERS, timeout=90)
+    sdc_response = requests.get(COMMONS_API, params=sdc_params, headers=HEADERS, timeout=30)
     sdc_response.raise_for_status()
     sdc_data = sdc_response.json()
     
@@ -275,7 +275,7 @@ def resolve_labels(qids: List[str]) -> Dict[str, str]:
             "format": "json"
         }
         
-        response = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=90)
+        response = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=30)
         response.raise_for_status()
         data = response.json()
         

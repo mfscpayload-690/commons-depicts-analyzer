@@ -9,12 +9,12 @@ import argparse
 import json
 import os
 import sys
+import requests
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 from api import fetch_category_files, check_depicts, resolve_labels
-from database import (init_db, insert_file, get_files_by_category, 
-                      get_statistics, clear_category, verify_category_saved, get_all_categories)
+from database import init_db, insert_file, get_files_by_category, get_statistics, clear_category, get_history_stats
 
 # Initialize Flask app
 app = Flask(__name__, static_folder="../frontend")
@@ -27,15 +27,9 @@ init_db()
 def analyze_category(category_name: str, progress_callback=None) -> dict:
     """
     Run full analysis pipeline for a category.
-    
-    Args:
-        category_name: Commons category name
-        progress_callback: Optional callback for progress updates
-    
-    Returns:
-        Analysis results dict
     """
     # Normalize category name
+    category_name = category_name.strip()
     if not category_name.startswith("Category:"):
         category_name = f"Category:{category_name}"
     
@@ -48,9 +42,6 @@ def analyze_category(category_name: str, progress_callback=None) -> dict:
     
     try:
         files = fetch_category_files(category_name)
-    except ValueError as e:
-        # Category validation error (doesn't exist)
-        return {"error": str(e)}
     except Exception as e:
         return {"error": f"Failed to fetch category: {str(e)}"}
     
@@ -61,8 +52,8 @@ def analyze_category(category_name: str, progress_callback=None) -> dict:
     total = len(files)
     
     for i, file_title in enumerate(files):
-        if progress_callback:
-            progress_callback(f"Checking file {i + 1}/{total}: {file_title}")
+        if progress_callback and i % 10 == 0:
+            progress_callback(f"Checking file {i + 1}/{total}...")
         
         try:
             has_depicts, qids = check_depicts(file_title)
@@ -97,26 +88,17 @@ def analyze_category(category_name: str, progress_callback=None) -> dict:
 
 @app.route("/")
 def serve_index():
-    """Serve the frontend index.html."""
     return send_from_directory(app.static_folder, "index.html")
 
 
 @app.route("/<path:filename>")
 def serve_static(filename):
-    """Serve static frontend files."""
     return send_from_directory(app.static_folder, filename)
 
 
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
-    """
-    Analyze a Commons category.
-    
-    Request body: {"category": "Category:Example"}
-    Returns: Analysis results with statistics and file lists
-    """
     data = request.get_json()
-    
     if not data or "category" not in data:
         return jsonify({"error": "Missing 'category' in request body"}), 400
     
@@ -125,31 +107,21 @@ def api_analyze():
         return jsonify({"error": "Category name cannot be empty"}), 400
     
     result = analyze_category(category)
-    
     if "error" in result:
         return jsonify(result), 400
-    
     return jsonify(result)
 
 
 @app.route("/api/results/<path:category>", methods=["GET"])
 def api_results(category):
-    """
-    Get stored results for a category.
-    
-    Returns cached analysis results from database.
-    """
-    # Normalize category name
     if not category.startswith("Category:"):
         category = f"Category:{category}"
     
     stats = get_statistics(category)
-    
     if stats["total"] == 0:
-        return jsonify({"error": "No results found for this category"}), 404
+        return jsonify({"error": "No results found"}), 404
     
     files_data = get_files_by_category(category)
-    
     return jsonify({
         "category": category,
         "statistics": stats,
@@ -157,91 +129,78 @@ def api_results(category):
     })
 
 
-@app.route("/api/verify/<path:category>", methods=["GET"])
-def api_verify(category):
-    """
-    Verify that a category's data was saved to the database.
-    
-    Returns verification info including record counts, timestamps, and sample data.
-    """
-    result = verify_category_saved(category)
-    
-    if not result.get("verified"):
-        return jsonify(result), 404
-    
-    return jsonify(result)
-
-
 @app.route("/api/history", methods=["GET"])
 def api_history():
-    """
-    Get a list of all previously analyzed categories.
-    
-    Returns category names, file counts, and last analyzed timestamps.
-    """
-    categories = get_all_categories()
-    return jsonify({
-        "categories": categories,
-        "total": len(categories)
-    })
+    """Get list of all analyzed categories with stats."""
+    history = get_history_stats()
+    return jsonify(history)
 
 
-@app.route("/api/category/<path:category>", methods=["DELETE"])
-def api_delete_category(category):
-    """
-    Delete a category and all its files from the database.
+@app.route("/api/delete", methods=["POST"])
+def api_delete():
+    """Delete a category from history."""
+    data = request.get_json()
+    if not data or "category" not in data:
+        return jsonify({"error": "Missing 'category'"}), 400
     
-    Args:
-        category: Category name to delete
-    """
-    # Normalize category name
-    if not category.startswith("Category:"):
-        category = f"Category:{category}"
+    clear_category(data["category"])
+    return jsonify({"success": True})
+
+
+@app.route("/api/autocomplete", methods=["GET"])
+def api_autocomplete():
+    """Proxy for Commons Opensearch API."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify([])
     
-    # Check if category exists
-    stats = get_statistics(category)
-    if stats["total"] == 0:
-        return jsonify({"error": "Category not found in database"}), 404
-    
-    # Delete the category
-    clear_category(category)
-    
-    return jsonify({
-        "success": True,
-        "message": f"Deleted {stats['total']} files from {category}",
-        "deleted_files": stats["total"]
-    })
+    try:
+        # Action=opensearch, namespace 14 (Category)
+        url = "https://commons.wikimedia.org/w/api.php"
+        params = {
+            "action": "opensearch",
+            "format": "json",
+            "namespace": "14",
+            "limit": "8",
+            "search": query
+        }
+        resp = requests.get(url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        # Opensearch returns [query, [names], [descriptions], [links]]
+        # We just want the names (index 1)
+        suggestions = data[1]
+        
+        # Clean up output: remove "Category:" prefix if user query didn't have it, 
+        # or keep it consistent. Let's return clean names.
+        clean_suggestions = []
+        for s in suggestions:
+            clean_suggestions.append(s.replace("Category:", ""))
+            
+        return jsonify(clean_suggestions)
+        
+    except Exception as e:
+        print(f"Autocomplete error: {e}", file=sys.stderr)
+        return jsonify([])
 
 
 # ============ CLI Mode ============
 
 def cli_main():
-    """Command-line interface for analysis."""
-    parser = argparse.ArgumentParser(
-        description="Analyze Wikimedia Commons categories for depicts (P180) metadata"
-    )
-    parser.add_argument(
-        "--category", "-c",
-        required=True,
-        help="Commons category to analyze (e.g., 'Category:Example')"
-    )
-    parser.add_argument(
-        "--json", "-j",
-        action="store_true",
-        help="Output results as JSON"
-    )
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--category", "-c", required=True)
+    parser.add_argument("--json", "-j", action="store_true")
     args = parser.parse_args()
     
     def progress(msg):
         print(f"  {msg}", file=sys.stderr)
     
-    print(f"\n[*] Analyzing: {args.category}\n", file=sys.stderr)
-    
+    print(f"\n📂 Analyzing: {args.category}\n", file=sys.stderr)
     result = analyze_category(args.category, progress_callback=progress)
     
     if "error" in result:
-        print(f"\n[ERROR] {result['error']}", file=sys.stderr)
+        print(f"\n❌ Error: {result['error']}", file=sys.stderr)
         sys.exit(1)
     
     if args.json:
@@ -249,28 +208,16 @@ def cli_main():
     else:
         stats = result["statistics"]
         print(f"\n{'='*50}", file=sys.stderr)
-        print(f"[STATS] Results for {result['category']}", file=sys.stderr)
+        print(f"📊 Results for {result['category']}", file=sys.stderr)
         print(f"{'='*50}", file=sys.stderr)
         print(f"  Total files:      {stats['total']}", file=sys.stderr)
-        print(f"  With depicts:     {stats['with_depicts']} [OK]", file=sys.stderr)
-        print(f"  Without depicts:  {stats['without_depicts']} [X]", file=sys.stderr)
-        
-        if stats["total"] > 0:
-            coverage = (stats["with_depicts"] / stats["total"]) * 100
-            print(f"  Coverage:         {coverage:.1f}%", file=sys.stderr)
-        
-        print(f"\n[FILES] Without depicts:", file=sys.stderr)
-        for f in result["files"]:
-            if not f["has_depicts"]:
-                print(f"    - {f['file_name']}", file=sys.stderr)
+        print(f"  With depicts:     {stats['with_depicts']} ✓", file=sys.stderr)
+        print(f"  Without depicts:  {stats['without_depicts']} ✗", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    # Check if running in CLI mode
     if len(sys.argv) > 1 and sys.argv[1] in ["--category", "-c", "--help", "-h"]:
         cli_main()
     else:
-        # Start web server
-        print("Starting Wikimedia Commons Depicts Analyzer...")
-        print("Open http://localhost:5000 in your browser")
+        print("🚀 Server at http://localhost:5000")
         app.run(host="0.0.0.0", port=5000, debug=True)
