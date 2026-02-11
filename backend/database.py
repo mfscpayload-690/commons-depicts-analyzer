@@ -143,6 +143,73 @@ def get_history_stats() -> List[Dict[str, Any]]:
     return history
 
 
+def get_all_categories() -> List[Dict[str, Any]]:
+    """
+    Get a list of all analyzed categories with file counts and coverage.
+    Used by the /api/history endpoint.
+    """
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT 
+            category,
+            COUNT(*) as total_files,
+            SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts
+        FROM files 
+        GROUP BY category
+        ORDER BY category ASC
+    """)
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    categories = []
+    for row in rows:
+        total = row["total_files"]
+        with_dep = row["with_depicts"] or 0
+        categories.append({
+            "category": row["category"],
+            "total_files": total,
+            "with_depicts": with_dep,
+            "without_depicts": total - with_dep
+        })
+    return categories
+
+
+def verify_category_saved(category: str) -> Dict[str, Any]:
+    """
+    Verify that a category's data was saved to the database.
+    Returns verification info including record count and sample data.
+    """
+    if not category.startswith("Category:"):
+        category = f"Category:{category}"
+    
+    conn = _get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT COUNT(*) as cnt FROM files WHERE category = ?", (category,))
+    count = cursor.fetchone()["cnt"]
+    
+    if count == 0:
+        conn.close()
+        return {"verified": False, "category": category, "record_count": 0}
+    
+    cursor.execute(
+        "SELECT file_name, depicts, has_depicts FROM files WHERE category = ? LIMIT 5",
+        (category,)
+    )
+    samples = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    
+    return {
+        "verified": True,
+        "category": category,
+        "record_count": count,
+        "sample_records": samples
+    }
+
+
 def clear_category(category: str) -> None:
     """Clear all records for a category."""
     conn = _get_connection()
