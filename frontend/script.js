@@ -46,6 +46,9 @@ let suggestionItems = [];
 let activeSuggestionIndex = -1;
 let suggestionTimeout;
 let activeJobId = null;
+let coverageChart = null; // Chart.js instance
+let currentLanguage = 'en'; // Default language
+let currentCategory = ''; // Track current analyzed category
 
 // ============ API Functions ============
 
@@ -73,26 +76,21 @@ async function analyzeCategory(category) {
 }
 
 /**
- * Start an async analysis job
- * @param {string} category - Category name
- * @returns {Promise<Object>} Job response
+ * Start a new analysis job
  */
 async function startAnalysisJob(category) {
-    const response = await fetch('/api/analyze?async=1', {
+    const response = await fetch('/api/analyze?async=1&language=' + currentLanguage, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ category }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category })
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
+        const data = await response.json();
         throw new Error(data.error || 'Failed to start analysis');
     }
 
-    return data;
+    return await response.json();
 }
 
 /**
@@ -300,6 +298,136 @@ function setLoading(isLoading) {
         elements.analyzeBtn.onclick = null;
     }
 }
+
+/**
+ * Show toast notification
+ * @param {string} message - Message to display
+ * @param {string} type - Type: 'success', 'error', 'info', 'warning'
+ * @param {number} duration - Duration in ms (default: 4000)
+ */
+function showToast(message, type = 'info', duration = 4000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    const iconMap = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        info: 'fa-info-circle',
+        warning: 'fa-exclamation-triangle'
+    };
+
+    toast.innerHTML = `
+        <i class="fa-solid ${iconMap[type] || iconMap.info}"></i>
+        <span class="toast-message">${escapeHtml(message)}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+            <i class="fa-solid fa-times"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-dismiss
+    setTimeout(() => {
+        toast.classList.add('toast-fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+
+/**
+ * Render doughnut chart for coverage visualization
+ * @param {Object} stats - Statistics object
+ */
+function renderCoverageChart(stats) {
+    const canvas = document.getElementById('coverage-chart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    // Destroy previous chart
+    if (coverageChart) {
+        coverageChart.destroy();
+    }
+
+    // Theme-aware colors
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#e3e3e3' : '#202122';
+    const gridColor = isDark ? '#3a3f44' : '#c8ccd1';
+
+    coverageChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['With Depicts (P180)', 'Without Depicts'],
+            datasets: [{
+                data: [stats.with_depicts, stats.without_depicts],
+                backgroundColor: [
+                    'rgba(20, 134, 109, 0.8)',  // Success color
+                    'rgba(172, 102, 0, 0.8)'     // Warning color
+                ],
+                borderColor: [
+                    'rgba(20, 134, 109, 1)',
+                    'rgba(172, 102, 0, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: textColor,
+                        padding: 15,
+                        font: {
+                            size: 13
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = stats.total;
+                            const percent = ((value / total) * 100).toFixed(1);
+                            return `${label}: ${value} (${percent}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Download export in specified format
+ * @param {string} format - 'csv' or 'json'
+ */
+function downloadExport(format) {
+    if (!currentCategory) {
+        showToast('No category to export', 'warning');
+        return;
+    }
+
+    const url = `/api/export/${encodeURIComponent(currentCategory)}?format=${format}`;
+
+    // Create temporary link and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '';  // Filename from Content-Disposition header
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast(`Downloading ${format.toUpperCase()} export...`, 'success', 2000);
+}
+
+// Make downloadExport globally accessible
+window.downloadExport = downloadExport;
 
 function showProgress(percentValue, labelText, detailText) {
     const progress = document.getElementById('progress');
@@ -626,10 +754,11 @@ async function handleSubmit(event) {
 
     const category = elements.categoryInput.value.trim();
     if (!category) {
-        showStatus('Please enter a category name', 'error');
+        showToast('Please enter a category name', 'error');
         return;
     }
 
+    currentCategory = category; // Track for exports
     setLoading(true);
     hideStatus();
     showProgress(4, `Analyzing "${category}"`, 'Preparing analysis');
@@ -643,17 +772,19 @@ async function handleSubmit(event) {
         activeJobId = job.job_id;
         const result = await pollProgress(activeJobId, category);
 
+        currentCategory = result.category; // Store full category name
+
         updateStatistics(result.statistics);
         populateTables(result.files);
+        renderCoverageChart(result.statistics); // Render chart
         saveSearchHistory(category);
 
-        showStatus(`Analysis complete! Found ${result.statistics.total} files.`, 'success');
-        setTimeout(hideStatus, 3000);
+        showToast(`Analysis complete! Found ${result.statistics.total} files.`, 'success', 3000);
         completeProgress();
 
     } catch (error) {
         if (error.message === 'Analysis canceled') return;
-        showStatus(`Error: ${error.message}`, 'error');
+        showToast(`Error: ${error.message}`, 'error');
         hideProgress();
     } finally {
         setLoading(false);
@@ -752,8 +883,32 @@ function initAppearancePanel() {
             const theme = e.target.value;
             applyTheme(theme);
             localStorage.setItem('theme', theme);
+
+            // Re-render chart with new theme colors
+            if (coverageChart && currentCategory) {
+                const stats = {
+                    total: parseInt(document.getElementById('stat-total').textContent) || 0,
+                    with_depicts: parseInt(document.getElementById('stat-with-depicts').textContent) || 0,
+                    without_depicts: parseInt(document.getElementById('stat-without-depicts').textContent) || 0
+                };
+                renderCoverageChart(stats);
+            }
         });
     });
+
+    // Handle language changes
+    const languageSelect = document.getElementById('language-select');
+    if (languageSelect) {
+        // Load saved language
+        currentLanguage = localStorage.getItem('language') || 'en';
+        languageSelect.value = currentLanguage;
+
+        languageSelect.addEventListener('change', (e) => {
+            currentLanguage = e.target.value;
+            localStorage.setItem('language', currentLanguage);
+            showToast(`Language changed to ${e.target.selectedOptions[0].text}`, 'info', 2000);
+        });
+    }
 }
 
 function applyTheme(theme) {

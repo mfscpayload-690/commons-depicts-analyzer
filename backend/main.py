@@ -27,13 +27,14 @@ CORS(app)
 init_db()
 
 
-def analyze_category(category_name: str, progress_callback=None, progress_hook=None) -> dict:
+def analyze_category(category_name: str, progress_callback=None, progress_hook=None, language: str = "en") -> dict:
     """
     Run full analysis pipeline for a category.
     
     Args:
         category_name: Commons category name
         progress_callback: Optional callback for progress updates
+        language: Language code for depicts labels (default: 'en')
     
     Returns:
         Analysis results dict
@@ -94,10 +95,10 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
         try:
             has_depicts, qids = check_depicts(file_title)
             
-            # Resolve labels if there are QIDs
+            # Resolve labels if there are QIDs (with language parameter)
             depicts_str = None
             if qids:
-                labels = resolve_labels(qids)
+                labels = resolve_labels(qids, language)  # Pass language here
                 label_list = [labels.get(qid, qid) for qid in qids]
                 depicts_str = ", ".join(label_list)
             
@@ -178,7 +179,7 @@ def cancel_job(job_id: str) -> bool:
         return True
 
 
-def _run_analysis_job(job_id: str, category: str) -> None:
+def _run_analysis_job(job_id: str, category: str, language: str = "en") -> None:
     def hook(info: dict) -> None:
         if is_job_cancelled(job_id):
             raise _AnalysisCancelled()
@@ -187,7 +188,7 @@ def _run_analysis_job(job_id: str, category: str) -> None:
     _set_job(job_id, status="running", phase="fetching", message="Starting analysis")
 
     try:
-        result = analyze_category(category, progress_hook=hook)
+        result = analyze_category(category, progress_hook=hook, language=language)
     except _AnalysisCancelled:
         return
 
@@ -207,19 +208,20 @@ def job_total(job_id: str) -> int:
         return int(job.get("total") or 0)
 
 
-def start_analysis_job(category: str) -> str:
+def start_analysis_job(category: str, language: str = "en") -> str:
     job_id = uuid.uuid4().hex
     _set_job(
         job_id,
         status="queued",
         phase="queued",
         category=category,
+        language=language,
         processed=0,
         total=None,
         message="Queued"
     )
 
-    thread = threading.Thread(target=_run_analysis_job, args=(job_id, category), daemon=True)
+    thread = threading.Thread(target=_run_analysis_job, args=(job_id, category, language), daemon=True)
     thread.start()
     return job_id
 
@@ -244,6 +246,7 @@ def api_analyze():
     Analyze a Commons category.
     
     Request body: {"category": "Category:Example"}
+    Query params: ?language=en (optional, default: 'en')
     Returns: Analysis results with statistics and file lists
     """
     data = request.get_json()
@@ -256,12 +259,13 @@ def api_analyze():
         return jsonify({"error": "Category name cannot be empty"}), 400
     
     async_mode = request.args.get("async") == "1"
+    language = request.args.get("language", "en")  # Get language parameter
 
     if async_mode:
-        job_id = start_analysis_job(category)
+        job_id = start_analysis_job(category, language)
         return jsonify({"job_id": job_id, "status": "started"}), 202
 
-    result = analyze_category(category)
+    result = analyze_category(category, language=language)
 
     if "error" in result:
         return jsonify(result), 400
@@ -404,6 +408,75 @@ def api_delete_category(category):
         "message": f"Deleted {stats['total']} files from {category}",
         "deleted_files": stats["total"]
     })
+
+
+@app.route("/api/export/<path:category>", methods=["GET"])
+def api_export(category):
+    """
+    Export category analysis results as CSV or JSON.
+    
+    Query params: ?format=csv|json (default: csv)
+    """
+    from flask import Response
+    import csv
+    from io import StringIO
+    
+    # Normalize category name
+    if not category.startswith("Category:"):
+        category = f"Category:{category}"
+    
+    # Get data
+    stats = get_statistics(category)
+    if stats["total"] == 0:
+        return jsonify({"error": "No results found for this category"}), 404
+    
+    files_data = get_files_by_category(category)
+    export_format = request.args.get("format", "csv").lower()
+    
+    if export_format == "json":
+        # JSON export
+        result = {
+            "category": category,
+            "statistics": stats,
+            "files": files_data,
+            "exported_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+        }
+        response = Response(
+            json.dumps(result, indent=2),
+            mimetype="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename={category.replace('Category:', '').replace(' ', '_')}_export.json"
+            }
+        )
+        return response
+    
+    else:
+        # CSV export
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Header
+        writer.writerow(["File Name", "Has Depicts", "Depicts Labels"])
+        
+        # Data rows
+        for file in files_data:
+            writer.writerow([
+                file["file_name"],
+                "Yes" if file["has_depicts"] else "No",
+                file.get("depicts", "")
+            ])
+        
+        csv_data = output.getvalue()
+        output.close()
+        
+        response = Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={category.replace('Category:', '').replace(' ', '_')}_export.csv"
+            }
+        )
+        return response
 
 
 # ============ CLI Mode ============
