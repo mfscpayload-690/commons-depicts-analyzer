@@ -1,4 +1,4 @@
-# 📊 Commons Depicts Analyzer
+# Commons Depicts Analyzer
 
 <div align="center">
 
