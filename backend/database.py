@@ -57,15 +57,24 @@ def init_db() -> None:
 def insert_file(file_name: str, category: str, depicts: Optional[str], has_depicts: bool) -> None:
     """
     Insert or update a file record.
+    
+    Args:
+        file_name: Commons file name with "File:" prefix
+        category: Category name with "Category:" prefix
+        depicts: Comma-separated depicts labels (or None)
+        has_depicts: Boolean flag
     """
     conn = _get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
-        INSERT INTO files (file_name, category, depicts, has_depicts)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(file_name, category) 
-        DO UPDATE SET depicts = excluded.depicts, has_depicts = excluded.has_depicts
+        DO UPDATE SET 
+            depicts = excluded.depicts,
+            has_depicts = excluded.has_depicts,
+            analyzed_at = CURRENT_TIMESTAMP
     """, (file_name, category, depicts, 1 if has_depicts else 0))
     
     conn.commit()
