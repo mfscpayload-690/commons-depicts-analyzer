@@ -604,12 +604,52 @@ a:visited {
     font-size: var(--font-size-sm);
     color: var(--color-text);
     cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 8px;
+    /* Reduce padding on right to keep icon close */
 }
 
 .history-chip:hover {
     border-color: var(--color-primary);
     color: var(--color-primary);
+    padding-right: 6px;
+    /* Slightly adjust for icon */
+}
+
+.history-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    opacity: 0;
+    transition: all 0.2s ease;
+    font-size: 0.8em;
+    transform: scale(0.8);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.history-chip:hover .history-chip-remove {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.history-chip-remove:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+[data-theme="dark"] .history-chip-remove {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .history-chip-remove:hover {
+    background: rgba(220, 38, 38, 0.2);
+    color: #f87171;
 }
 
 .history-clear {

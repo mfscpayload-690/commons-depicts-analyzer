@@ -530,14 +530,27 @@ function renderSearchHistory(history) {
     }
 
     history.forEach((name) => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
+        const chip = document.createElement('div');
         chip.className = 'history-chip';
-        chip.textContent = name;
-        chip.addEventListener('click', () => {
+
+        const label = document.createElement('span');
+        label.textContent = name;
+        label.addEventListener('click', () => {
             elements.categoryInput.value = name;
             elements.form.dispatchEvent(new Event('submit'));
         });
+
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'history-chip-remove';
+        removeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
+        removeBtn.title = 'Remove from history';
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeSearchHistoryItem(name);
+        });
+
+        chip.appendChild(label);
+        chip.appendChild(removeBtn);
         elements.historyChips.appendChild(chip);
     });
 
@@ -560,9 +573,24 @@ function saveSearchHistory(category) {
     renderSearchHistory(trimmed);
 }
 
+function removeSearchHistoryItem(name) {
+    const history = getSearchHistory();
+    const filtered = history.filter((item) => item !== name);
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(filtered));
+    renderSearchHistory(filtered);
+
+    // Show toast for feedback
+    if (typeof showToast === 'function') {
+        showToast('Removed from history', 'info', 2000);
+    }
+}
+
 function clearSearchHistory() {
     localStorage.removeItem(SEARCH_HISTORY_KEY);
     renderSearchHistory([]);
+    if (typeof showToast === 'function') {
+        showToast('Search history cleared', 'info', 2000);
+    }
 }
 
 function hideSuggestions() {
@@ -581,7 +609,7 @@ function renderSuggestions(items) {
     activeSuggestionIndex = -1;
 
     if (!items || items.length === 0) {
-        renderSuggestionsEmpty();
+        //        renderSuggestionsEmpty();
         return;
     }
 
