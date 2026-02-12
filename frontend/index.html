@@ -9,6 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -84,6 +85,20 @@
                     </label>
                 </div>
             </div>
+
+            <div class="appearance-section">
+                <span class="appearance-label">Language</span>
+                <div class="appearance-options">
+                    <select id="language-select" class="language-select">
+                        <option value="en">English</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                        <option value="es">Español</option>
+                        <option value="hi">हिन्दी</option>
+                        <option value="ml">മലയാളം</option>
+                    </select>
+                </div>
+            </div>
         </aside>
 
         <!-- Search Section -->
@@ -95,8 +110,8 @@
                     <input type="text" id="category-input" class="search-input"
                         placeholder="Enter Commons category name (e.g., Files from Wiki Loves Earth 2024)"
                         autocomplete="off" required>
-                    <div id="suggestions" class="suggestions hidden" role="listbox"
-                        aria-label="Category suggestions"></div>
+                    <div id="suggestions" class="suggestions hidden" role="listbox" aria-label="Category suggestions">
+                    </div>
                 </div>
                 <button type="submit" id="analyze-btn" class="btn btn-primary">
                     <i class="fa-solid fa-bolt"></i> Analyze
@@ -151,6 +166,21 @@
                     <span class="stat-value" id="stat-coverage">0%</span>
                     <span class="stat-label">Coverage</span>
                 </div>
+            </div>
+
+            <!-- Chart Visualization -->
+            <div class="chart-container">
+                <canvas id="coverage-chart"></canvas>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="export-buttons" id="export-buttons">
+                <button class="btn btn-export" onclick="downloadExport('csv')">
+                    <i class="fa-solid fa-file-csv"></i> Export CSV
+                </button>
+                <button class="btn btn-export" onclick="downloadExport('json')">
+                    <i class="fa-solid fa-file-code"></i> Export JSON
+                </button>
             </div>
         </section>
 
@@ -242,12 +272,14 @@
                     <div class="select-control">
                         <label for="history-sort"><i class="fa-solid fa-sort"></i> Sort:</label>
                         <select id="history-sort" class="history-select">
-                            <option value="name-asc">Name (A→Z)</option>
-                            <option value="name-desc">Name (Z→A)</option>
-                            <option value="coverage-desc">Coverage (High→Low)</option>
-                            <option value="coverage-asc">Coverage (Low→High)</option>
+                            <option value="name-asc">Name (A → Z)</option>
+                            <option value="name-desc">Name (Z → A)</option>
+                            <option value="coverage-desc">Coverage (High → Low)</option>
+                            <option value="coverage-asc">Coverage (Low → High)</option>
                             <option value="files-desc">Files (Most)</option>
                             <option value="files-asc">Files (Least)</option>
+                            <option value="recent-desc">Recently Searched (Newest First)</option>
+                            <option value="recent-asc">Recently Searched (Oldest First)</option>
                         </select>
                     </div>
                     <div class="select-control">
@@ -256,7 +288,7 @@
                             <option value="all">All Categories</option>
                             <option value="high">High Coverage (>70%)</option>
                             <option value="medium">Medium Coverage (30-70%)</option>
-                            <option value="low">Low Coverage (<30%)</option>
+                            <option value="low">Low Coverage (<30%)< /option>
                         </select>
                     </div>
                 </div>
@@ -312,6 +344,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="script.js"></script>
 </body>

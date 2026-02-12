@@ -277,14 +277,15 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
 
 
 @retry_on_failure(max_retries=2, base_delay=0.5)
-def resolve_labels(qids: List[str]) -> Dict[str, str]:
+def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
     """
-    Resolve Wikidata QIDs to English labels.
+    Resolve Wikidata QIDs to labels in specified language.
     
     Uses caching to avoid repeated API calls for the same QIDs.
     
     Args:
         qids: List of QIDs (e.g., ['Q123', 'Q456'])
+        language: Language code (e.g., 'en', 'fr', 'de', 'es', 'hi', 'ml')
     
     Returns:
         Dict mapping QID to label (e.g., {'Q123': 'Cat', 'Q456': 'Dog'})
@@ -295,10 +296,11 @@ def resolve_labels(qids: List[str]) -> Dict[str, str]:
     result = {}
     qids_to_fetch = []
     
-    # Check cache first
+    # Check cache first (cache key includes language)
     for qid in qids:
-        if qid in _label_cache:
-            result[qid] = _label_cache[qid]
+        cache_key = f"{qid}:{language}"
+        if cache_key in _label_cache:
+            result[qid] = _label_cache[cache_key]
         else:
             qids_to_fetch.append(qid)
     
@@ -313,7 +315,7 @@ def resolve_labels(qids: List[str]) -> Dict[str, str]:
             "action": "wbgetentities",
             "ids": "|".join(batch),
             "props": "labels",
-            "languages": "en",
+            "languages": language,
             "format": "json"
         }
         
@@ -324,8 +326,9 @@ def resolve_labels(qids: List[str]) -> Dict[str, str]:
         entities = data.get("entities", {})
         for qid, entity in entities.items():
             labels = entity.get("labels", {})
-            en_label = labels.get("en", {}).get("value", qid)  # Fallback to QID
-            result[qid] = en_label
-            _label_cache[qid] = en_label  # Cache it
+            # Try requested language, fallback to English, then QID
+            label = labels.get(language, {}).get("value") or labels.get("en", {}).get("value", qid)
+            result[qid] = label
+            _label_cache[f"{qid}:{language}"] = label  # Cache with language
     
     return result
