@@ -1090,6 +1090,22 @@ function sortHistoryData(data, sortBy) {
         case 'files-asc':
             sorted.sort((a, b) => (a.total_files || 0) - (b.total_files || 0));
             break;
+        case 'recent-desc':
+            // Newest first (most recent timestamp)
+            sorted.sort((a, b) => {
+                const timeA = new Date(a.last_analyzed || 0).getTime();
+                const timeB = new Date(b.last_analyzed || 0).getTime();
+                return timeB - timeA;
+            });
+            break;
+        case 'recent-asc':
+            // Oldest first (least recent timestamp)
+            sorted.sort((a, b) => {
+                const timeA = new Date(a.last_analyzed || 0).getTime();
+                const timeB = new Date(b.last_analyzed || 0).getTime();
+                return timeA - timeB;
+            });
+            break;
         default:
             sorted.sort((a, b) => a.category.localeCompare(b.category));
     }

@@ -22,7 +22,7 @@ def _get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Initialize the database schema."""
+    """Initialize SQLite database with required schema."""
     conn = _get_connection()
     cursor = conn.cursor()
     
@@ -33,9 +33,16 @@ def init_db() -> None:
             category TEXT NOT NULL,
             depicts TEXT,
             has_depicts INTEGER NOT NULL,
+            analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(file_name, category)
         )
     """)
+    
+    # Add analyzed_at column if it doesn't exist (migration)
+    try:
+        cursor.execute("SELECT analyzed_at FROM files LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE files ADD COLUMN analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     
     # Create index for faster category lookups
     cursor.execute("""
@@ -112,8 +119,11 @@ def get_statistics(category: str) -> Dict[str, int]:
 
 def get_history_stats() -> List[Dict[str, Any]]:
     """
-    Get statistics for all analyzed categories.
-    Used for the Search History view.
+    Get aggregated statistics for all categories in the database.
+    Used for the analysis history dashboard.
+    
+    Returns:
+        List of category statistics including last analyzed timestamp
     """
     conn = _get_connection()
     cursor = conn.cursor()
@@ -123,8 +133,9 @@ def get_history_stats() -> List[Dict[str, Any]]:
             category,
             COUNT(*) as total,
             SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
-            SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts
-        FROM files 
+            SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts,
+            MAX(analyzed_at) as last_analyzed
+        FROM files
         GROUP BY category
         ORDER BY category ASC
     """)
@@ -134,12 +145,17 @@ def get_history_stats() -> List[Dict[str, Any]]:
     
     history = []
     for row in rows:
+        total = row["total"]
+        with_dep = row["with_depicts"] or 0
         history.append({
             "category": row["category"],
-            "total": row["total"],
-            "with_depicts": row["with_depicts"] or 0,
-            "without_depicts": row["without_depicts"] or 0
+            "total": total,
+            "total_files": total,
+            "with_depicts": with_dep,
+            "without_depicts": total - with_dep,
+            "last_analyzed": row["last_analyzed"]
         })
+    
     return history
 
 
