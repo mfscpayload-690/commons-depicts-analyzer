@@ -198,6 +198,17 @@ function getCommonsUrl(fileTitle) {
 }
 
 /**
+ * Get thumbnail URL for a Commons file
+ * @param {string} fileTitle - File title (e.g., "File:Example.jpg")
+ * @param {number} width - Thumbnail width in pixels
+ * @returns {string} Thumbnail URL
+ */
+function getThumbnailUrl(fileTitle, width = 60) {
+    const fileName = fileTitle.replace('File:', '');
+    return `https://commons.wikimedia.org/w/thumb.php?f=${encodeURIComponent(fileName)}&w=${width}`;
+}
+
+/**
  * Populate files table
  * @param {Array} files - Array of file objects
  */
@@ -224,8 +235,17 @@ function populateTables(files) {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index + 1}</td>
+                <td class="thumbnail-cell">
+                    <img src="${getThumbnailUrl(file.file_name)}" 
+                         alt="${escapeHtml(file.file_name.replace('File:', ''))}"
+                         class="file-thumbnail"
+                         loading="lazy"
+                         onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect fill=%22%23eee%22 width=%2260%22 height=%2260%22/><text x=%2230%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2210%22>No preview</text></svg>'">
+                </td>
                 <td class="file-link">
-                    <a href="${getCommonsUrl(file.file_name)}" target="_blank" rel="noopener">
+                    <a href="javascript:void(0)" onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                       title="Click to preview">
                         ${escapeHtml(file.file_name.replace('File:', ''))}
                     </a>
                 </td>
@@ -255,8 +275,17 @@ function populateTables(files) {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index + 1}</td>
+                <td class="thumbnail-cell">
+                    <img src="${getThumbnailUrl(file.file_name)}" 
+                         alt="${escapeHtml(file.file_name.replace('File:', ''))}"
+                         class="file-thumbnail"
+                         loading="lazy"
+                         onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect fill=%22%23eee%22 width=%2260%22 height=%2260%22/><text x=%2230%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2210%22>No preview</text></svg>'">
+                </td>
                 <td class="file-link">
-                    <a href="${getCommonsUrl(file.file_name)}" target="_blank" rel="noopener">
+                    <a href="javascript:void(0)" onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                       title="Click to preview">
                         ${escapeHtml(file.file_name.replace('File:', ''))}
                     </a>
                 </td>
