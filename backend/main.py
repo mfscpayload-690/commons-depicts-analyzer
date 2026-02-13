@@ -3,30 +3,81 @@ Wikimedia Commons Depicts Analyzer - Main Application
 
 Flask web server and CLI orchestrator.
 Provides API endpoints for frontend and command-line analysis.
+
+SECURITY: This module integrates server-side sessions, rate limiting,
+CSRF protection, input validation, and security headers.
 """
 
 import argparse
 import json
+import logging
 import os
+import secrets
 import sys
+import tempfile
 import threading
 import time
 import uuid
+from datetime import timedelta
 from flask import Flask, request, jsonify, send_from_directory, redirect, session
 from flask_cors import CORS
+from flask_session import Session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from api import (fetch_category_files, check_depicts, resolve_labels, 
                  fetch_category_suggestions, fetch_file_info, suggest_depicts)
 from database import (init_db, insert_file, get_files_by_category, 
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
-from config import FLASK_SECRET_KEY
+from config import (
+    FLASK_SECRET_KEY, ALLOWED_ORIGINS, IS_PRODUCTION,
+    SESSION_LIFETIME_MINUTES, SESSION_COOKIE_SECURE,
+    SESSION_COOKIE_HTTPONLY, SESSION_COOKIE_SAMESITE,
+    RATE_LIMIT_DEFAULT, RATE_LIMIT_AUTH, RATE_LIMIT_CALLBACK, RATE_LIMIT_API_WRITE
+)
 from oauth import (is_oauth_configured, get_authorize_url, exchange_code_for_token,
-                   get_user_profile, add_depicts_statement)
+                   get_user_profile, add_depicts_statement, revoke_token)
+from security import (
+    validate_qid, validate_file_title, validate_category,
+    sanitize_error, add_security_headers, generate_csrf_token,
+    csrf_required, login_required, logger as security_logger
+)
 
-# Initialize Flask app
+logger = logging.getLogger("app")
+
+# ============ Initialize Flask App ============
 app = Flask(__name__, static_folder="../frontend")
 app.secret_key = FLASK_SECRET_KEY
-CORS(app)
+
+# --- Server-Side Session Configuration ---
+# Sessions stored on filesystem (NOT in browser cookies)
+_session_dir = os.path.join(tempfile.gettempdir(), "cda_sessions")
+os.makedirs(_session_dir, exist_ok=True)
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = _session_dir
+app.config["SESSION_PERMANENT"] = True
+app.config["SESSION_USE_SIGNER"] = True  # Sign session ID cookie
+app.config["SESSION_KEY_PREFIX"] = "cda_"  # Namespace sessions
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=SESSION_LIFETIME_MINUTES)
+app.config["SESSION_COOKIE_SECURE"] = SESSION_COOKIE_SECURE
+app.config["SESSION_COOKIE_HTTPONLY"] = SESSION_COOKIE_HTTPONLY
+app.config["SESSION_COOKIE_SAMESITE"] = SESSION_COOKIE_SAMESITE
+Session(app)
+
+# --- CORS: Locked to Whitelisted Origins ---
+CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+
+# --- Rate Limiting ---
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[RATE_LIMIT_DEFAULT],
+    storage_uri="memory://"
+)
+
+# --- Security Headers on Every Response ---
+app.after_request(add_security_headers)
+
 
 # Initialize database on startup
 init_db()
@@ -523,39 +574,71 @@ def api_suggests(file_title):
         return jsonify({"error": str(e), "suggestions": []}), 500
 
 
-# ============ Auth Endpoints ============
+# ============ Auth Endpoints (Security-Hardened) ============
+
 
 @app.route("/auth/login")
+@limiter.limit(RATE_LIMIT_AUTH)
 def auth_login():
     """Redirect user to Wikimedia OAuth authorization."""
     if not is_oauth_configured():
-        return jsonify({"error": "OAuth is not configured. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET environment variables."}), 503
+        return jsonify({"error": "OAuth is not configured."}), 503
     
-    state = str(uuid.uuid4())
+    # Generate cryptographically secure state for CSRF protection
+    state = secrets.token_urlsafe(32)
     session["oauth_state"] = state
     return redirect(get_authorize_url(state))
 
 
 @app.route("/auth/callback")
+@limiter.limit(RATE_LIMIT_CALLBACK)
 def auth_callback():
     """Handle OAuth callback after user authorizes."""
     code = request.args.get("code")
     state = request.args.get("state")
+    error = request.args.get("error")
+    
+    # User denied authorization
+    if error:
+        logger.info(f"OAuth authorization denied by user: {error}")
+        return redirect("/?auth_error=denied")
     
     if not code:
+        logger.warning("OAuth callback missing code parameter")
         return redirect("/?auth_error=no_code")
     
-    # Verify state matches
-    if state != session.get("oauth_state"):
+    # Verify state matches (CSRF protection)
+    stored_state = session.get("oauth_state")
+    if not stored_state or not state:
+        logger.warning("OAuth state parameter missing")
+        return redirect("/?auth_error=state_mismatch")
+    
+    # Constant-time comparison to prevent timing attacks
+    import hmac
+    if not hmac.compare_digest(state, stored_state):
+        logger.warning("OAuth state mismatch — possible CSRF attack")
         return redirect("/?auth_error=state_mismatch")
     
     # Exchange code for token
     success, token_data = exchange_code_for_token(code)
     if not success:
+        logger.error("OAuth token exchange failed")
         return redirect("/?auth_error=token_failed")
+    
+    # SESSION REGENERATION: Prevent session fixation attacks
+    # Clear old session data, start fresh
+    session.clear()
     
     access_token = token_data.get("access_token")
     session["access_token"] = access_token
+    
+    # Track token expiry
+    expires_in = token_data.get("expires_in")
+    if expires_in:
+        session["token_expires_at"] = time.time() + int(expires_in)
+    else:
+        # Default: 1 hour expiry
+        session["token_expires_at"] = time.time() + 3600
     
     # Get user profile
     profile_success, profile = get_user_profile(access_token)
@@ -563,51 +646,81 @@ def auth_callback():
         session["username"] = profile.get("username", "Unknown")
         session["user_id"] = profile.get("sub", "")
     
+    # Generate CSRF token for subsequent write operations
+    generate_csrf_token()
+    
+    logger.info(f"User logged in: {session.get('username', 'Unknown')}")
     return redirect("/?auth_success=true")
 
 
 @app.route("/auth/logout")
 def auth_logout():
-    """Log user out by clearing session."""
-    session.pop("access_token", None)
-    session.pop("username", None)
-    session.pop("user_id", None)
-    session.pop("oauth_state", None)
+    """Log user out by clearing session and revoking token."""
+    # Attempt token revocation on Wikimedia side (best-effort)
+    access_token = session.get("access_token")
+    if access_token:
+        revoke_token(access_token)
+        logger.info(f"User logged out: {session.get('username', 'Unknown')}")
+    
+    # Clear ALL session data (nuclear option — safest)
+    session.clear()
     return redirect("/")
 
 
 @app.route("/auth/status")
 def auth_status():
     """Check current auth status."""
-    return jsonify({
-        "logged_in": "access_token" in session,
-        "username": session.get("username", ""),
+    logged_in = "access_token" in session
+    
+    # Auto-expire if token is past its lifetime
+    if logged_in:
+        token_expiry = session.get("token_expires_at")
+        if token_expiry and time.time() > token_expiry:
+            session.clear()
+            logged_in = False
+    
+    response_data = {
+        "logged_in": logged_in,
+        "username": session.get("username", "") if logged_in else "",
         "oauth_configured": is_oauth_configured()
-    })
+    }
+    
+    # Include CSRF token for authenticated users (needed for write operations)
+    if logged_in:
+        response_data["csrf_token"] = session.get("_csrf_token", generate_csrf_token())
+    
+    return jsonify(response_data)
 
 
 @app.route("/api/add-depicts", methods=["POST"])
+@limiter.limit(RATE_LIMIT_API_WRITE)
+@login_required
+@csrf_required
 def api_add_depicts():
     """
     Add a depicts (P180) statement to a Commons file.
-    Requires OAuth authentication.
-    """
-    if "access_token" not in session:
-        return jsonify({"error": "Not authenticated. Please log in first."}), 401
     
+    Security:
+    - Requires valid authentication (login_required)
+    - Requires valid CSRF token (csrf_required)
+    - Rate limited to prevent abuse
+    - Input validated before use
+    """
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body required"}), 400
     
-    file_title = data.get("file_title")
-    qid = data.get("qid")
-    
-    if not file_title or not qid:
-        return jsonify({"error": "Both file_title and qid are required"}), 400
+    # Validate and sanitize inputs
+    try:
+        file_title = validate_file_title(data.get("file_title", ""))
+        qid = validate_qid(data.get("qid", ""))
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
     
     success, message = add_depicts_statement(session["access_token"], file_title, qid)
     
     if success:
+        logger.info(f"Depicts {qid} added to {file_title} by {session.get('username')}")
         return jsonify({"success": True, "message": message})
     else:
         return jsonify({"success": False, "error": message}), 500
