@@ -1,0 +1,22 @@
+name: CD
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build release artifact
+        run: |
+          mkdir -p dist
+          zip -r dist/commons-depicts-analyzer.zip . \
+            -x ".git/*" "data/depicts.db" "depicts.db" "**/__pycache__/*" "dist/*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: commons-depicts-analyzer
+          path: dist/commons-depicts-analyzer.zip

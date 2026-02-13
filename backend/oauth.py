@@ -15,7 +15,9 @@ SECURITY NOTES:
 - CSRF protection via state parameter
 """
 
+import json
 import logging
+from urllib.parse import quote
 import requests
 from typing import Dict, Any, Tuple
 from config import (
@@ -26,6 +28,7 @@ from config import (
 logger = logging.getLogger("oauth")
 
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
+USER_AGENT = "CommonsDepictsAnalyzer/1.0 (+https://github.com/mfscpayload-690/commons-depicts-analyzer)"
 
 # Strict HTTP timeouts (seconds)
 TOKEN_EXCHANGE_TIMEOUT = 15
@@ -57,7 +60,7 @@ def get_authorize_url(state: str) -> str:
         "redirect_uri": OAUTH_CALLBACK_URL,
         "state": state
     }
-    query = "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
+    query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
     return f"{OAUTH_AUTHORIZE_URL}?{query}"
 
 
@@ -209,7 +212,9 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         file_title = f"File:{file_title}"
     
     headers = {
-        "Authorization": f"Bearer {access_token}"
+        "Authorization": f"Bearer {access_token}",
+        "User-Agent": USER_AGENT,
+        "Accept": "application/json"
     }
     
     try:
@@ -227,6 +232,9 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         data = response.json()
         
         pages = data.get("query", {}).get("pages", {})
+        if not pages:
+            return False, "File not found on Commons"
+
         page_id = list(pages.keys())[0]
         if page_id == "-1":
             return False, f"File not found on Commons"
@@ -237,26 +245,33 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         token_params = {
             "action": "query",
             "meta": "tokens",
-            "format": "json"
+            "type": "csrf",
+            "format": "json",
+            "formatversion": "2"
         }
         token_response = requests.get(
             COMMONS_API, params=token_params, headers=headers,
             timeout=PROFILE_FETCH_TIMEOUT, verify=True
         )
         token_response.raise_for_status()
-        csrf_token = token_response.json().get("query", {}).get("tokens", {}).get("csrftoken", "+\\")
+        csrf_token = token_response.json().get("query", {}).get("tokens", {}).get("csrftoken")
+        if not csrf_token or csrf_token == "+\\":
+            return False, "Failed to obtain CSRF token. Please re-authenticate."
         
         # Step 3: Add the depicts claim
-        numeric_id = qid.replace("Q", "")
+        numeric_id = int(qid[1:])
+        value_payload = json.dumps({"entity-type": "item", "numeric-id": numeric_id})
         claim_data = {
             "action": "wbcreateclaim",
             "entity": media_id,
             "property": "P180",
             "snaktype": "value",
-            "value": f'{{"entity-type":"item","numeric-id":{numeric_id}}}',
+            "value": value_payload,
             "token": csrf_token,
             "format": "json",
-            "summary": "Added depicts statement via Commons Depicts Analyzer"
+            "formatversion": "2",
+            "summary": "Added depicts statement via Commons Depicts Analyzer",
+            "assert": "user"
         }
         
         claim_response = requests.post(
@@ -268,8 +283,13 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         
         if "error" in result:
             error_info = result["error"].get("info", "Unknown error")
-            logger.error(f"Wikibase API error adding depicts: {error_info}")
-            return False, "Failed to add depicts statement. The file may already have this depicts."
+            error_code = result["error"].get("code", "unknown")
+            logger.error(f"Wikibase API error adding depicts ({error_code}): {error_info}")
+            if error_code in {"modification-failed", "statement-conflict"}:
+                return False, "Failed to add depicts statement. The file may already have this depicts."
+            if error_code in {"assertuserfailed", "notloggedin"}:
+                return False, "Authentication expired. Please log in again."
+            return False, "Failed to add depicts statement. Please try again."
         
         logger.info(f"Successfully added depicts {qid} to {file_title}")
         return True, f"Successfully added depicts {qid} to {file_title}"
