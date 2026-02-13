@@ -12,15 +12,20 @@ import sys
 import threading
 import time
 import uuid
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, redirect, session
 from flask_cors import CORS
 
-from api import fetch_category_files, check_depicts, resolve_labels, fetch_category_suggestions
+from api import (fetch_category_files, check_depicts, resolve_labels, 
+                 fetch_category_suggestions, fetch_file_info, suggest_depicts)
 from database import (init_db, insert_file, get_files_by_category, 
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
+from config import FLASK_SECRET_KEY
+from oauth import (is_oauth_configured, get_authorize_url, exchange_code_for_token,
+                   get_user_profile, add_depicts_statement)
 
 # Initialize Flask app
 app = Flask(__name__, static_folder="../frontend")
+app.secret_key = FLASK_SECRET_KEY
 CORS(app)
 
 # Initialize database on startup
@@ -477,6 +482,135 @@ def api_export(category):
             }
         )
         return response
+
+@app.route("/api/fileinfo/<path:file_title>", methods=["GET"])
+def api_fileinfo(file_title):
+    """
+    Get detailed file information from Wikimedia Commons.
+    
+    Returns thumbnail URL, dimensions, description, license, etc.
+    """
+    try:
+        if not file_title.startswith("File:"):
+            file_title = f"File:{file_title}"
+        
+        info = fetch_file_info(file_title)
+        
+        if "error" in info:
+            return jsonify({"error": info["error"]}), 404
+        
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/suggests/<path:file_title>", methods=["GET"])
+def api_suggests(file_title):
+    """
+    Get Wikidata depicts suggestions based on file title keywords.
+    
+    Returns a list of suggested Q-items with labels and descriptions.
+    """
+    try:
+        if not file_title.startswith("File:"):
+            file_title = f"File:{file_title}"
+        
+        limit = request.args.get("limit", 5, type=int)
+        suggestions = suggest_depicts(file_title, limit=min(limit, 10))
+        
+        return jsonify({"suggestions": suggestions, "file": file_title})
+    except Exception as e:
+        return jsonify({"error": str(e), "suggestions": []}), 500
+
+
+# ============ Auth Endpoints ============
+
+@app.route("/auth/login")
+def auth_login():
+    """Redirect user to Wikimedia OAuth authorization."""
+    if not is_oauth_configured():
+        return jsonify({"error": "OAuth is not configured. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET environment variables."}), 503
+    
+    state = str(uuid.uuid4())
+    session["oauth_state"] = state
+    return redirect(get_authorize_url(state))
+
+
+@app.route("/auth/callback")
+def auth_callback():
+    """Handle OAuth callback after user authorizes."""
+    code = request.args.get("code")
+    state = request.args.get("state")
+    
+    if not code:
+        return redirect("/?auth_error=no_code")
+    
+    # Verify state matches
+    if state != session.get("oauth_state"):
+        return redirect("/?auth_error=state_mismatch")
+    
+    # Exchange code for token
+    success, token_data = exchange_code_for_token(code)
+    if not success:
+        return redirect("/?auth_error=token_failed")
+    
+    access_token = token_data.get("access_token")
+    session["access_token"] = access_token
+    
+    # Get user profile
+    profile_success, profile = get_user_profile(access_token)
+    if profile_success:
+        session["username"] = profile.get("username", "Unknown")
+        session["user_id"] = profile.get("sub", "")
+    
+    return redirect("/?auth_success=true")
+
+
+@app.route("/auth/logout")
+def auth_logout():
+    """Log user out by clearing session."""
+    session.pop("access_token", None)
+    session.pop("username", None)
+    session.pop("user_id", None)
+    session.pop("oauth_state", None)
+    return redirect("/")
+
+
+@app.route("/auth/status")
+def auth_status():
+    """Check current auth status."""
+    return jsonify({
+        "logged_in": "access_token" in session,
+        "username": session.get("username", ""),
+        "oauth_configured": is_oauth_configured()
+    })
+
+
+@app.route("/api/add-depicts", methods=["POST"])
+def api_add_depicts():
+    """
+    Add a depicts (P180) statement to a Commons file.
+    Requires OAuth authentication.
+    """
+    if "access_token" not in session:
+        return jsonify({"error": "Not authenticated. Please log in first."}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+    
+    file_title = data.get("file_title")
+    qid = data.get("qid")
+    
+    if not file_title or not qid:
+        return jsonify({"error": "Both file_title and qid are required"}), 400
+    
+    success, message = add_depicts_statement(session["access_token"], file_title, qid)
+    
+    if success:
+        return jsonify({"success": True, "message": message})
+    else:
+        return jsonify({"success": False, "error": message}), 500
 
 
 # ============ CLI Mode ============
