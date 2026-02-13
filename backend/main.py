@@ -33,7 +33,8 @@ from config import (
     FLASK_SECRET_KEY, ALLOWED_ORIGINS, IS_PRODUCTION,
     SESSION_LIFETIME_MINUTES, SESSION_COOKIE_SECURE,
     SESSION_COOKIE_HTTPONLY, SESSION_COOKIE_SAMESITE,
-    RATE_LIMIT_DEFAULT, RATE_LIMIT_AUTH, RATE_LIMIT_CALLBACK, RATE_LIMIT_API_WRITE
+    RATE_LIMIT_DEFAULT, RATE_LIMIT_AUTH, RATE_LIMIT_CALLBACK, RATE_LIMIT_API_WRITE,
+    HOST, PORT, DEBUG
 )
 from oauth import (is_oauth_configured, get_authorize_url, exchange_code_for_token,
                    get_user_profile, add_depicts_statement, revoke_token)
