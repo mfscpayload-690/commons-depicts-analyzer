@@ -79,6 +79,6 @@ RATE_LIMIT_CALLBACK = os.environ.get("RATE_LIMIT_CALLBACK", "10 per minute")
 RATE_LIMIT_API_WRITE = os.environ.get("RATE_LIMIT_API_WRITE", "30 per minute")
 
 # ============ Application Settings ============
-HOST = os.environ.get("HOST", "127.0.0.1" if IS_PRODUCTION else "0.0.0.0")
+HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", 5000))
 DEBUG = not IS_PRODUCTION and os.environ.get("DEBUG", "true").lower() == "true"
