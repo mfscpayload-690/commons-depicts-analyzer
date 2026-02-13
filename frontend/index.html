@@ -23,10 +23,18 @@
                         (P180)</a>
                     metadata coverage</p>
             </div>
-            <!-- Appearance Toggle Button -->
-            <button id="appearance-toggle" class="appearance-btn" title="Appearance settings">
-                <i class="fa-solid fa-palette"></i>
-            </button>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <!-- Auth Section -->
+                <div class="auth-section" id="auth-section">
+                    <a href="/auth/login" class="auth-btn" id="auth-btn" title="Login with Wikimedia">
+                        <i class="fa-solid fa-user"></i> <span id="auth-label">Login</span>
+                    </a>
+                </div>
+                <!-- Appearance Toggle Button -->
+                <button id="appearance-toggle" class="appearance-btn" title="Appearance settings">
+                    <i class="fa-solid fa-palette"></i>
+                </button>
+            </div>
         </header>
 
         <!-- Appearance Panel (Wikimedia Style) -->
@@ -349,6 +357,56 @@
 
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- File Preview Modal -->
+    <div id="file-preview-modal" class="file-preview-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="file-preview-content">
+            <div class="preview-header">
+                <h3 id="preview-file-title">File Name</h3>
+                <button class="preview-close-btn" id="preview-close-btn" title="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="preview-image-container" id="preview-image-container">
+                <div class="preview-image-loading">
+                    <div class="spinner"></div>
+                    <span>Loading preview...</span>
+                </div>
+            </div>
+
+            <div class="preview-details" id="preview-details">
+                <div class="preview-meta-grid" id="preview-meta-grid">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <div class="preview-description hidden" id="preview-description"></div>
+
+                <div class="preview-actions" id="preview-actions">
+                    <a class="preview-action-btn primary" id="preview-view-commons" href="#" target="_blank"
+                        rel="noopener">
+                        <i class="fa-solid fa-external-link-alt"></i> View on Commons
+                    </a>
+                    <a class="preview-action-btn success" id="preview-add-depicts" href="#" target="_blank"
+                        rel="noopener">
+                        <i class="fa-solid fa-plus"></i> Add Depicts
+                    </a>
+                </div>
+
+                <!-- Depicts Suggestions -->
+                <div class="suggests-section" id="suggests-section">
+                    <h4><i class="fa-solid fa-wand-magic-sparkles"></i> Suggested Depicts</h4>
+                    <div id="suggests-content">
+                        <div class="suggests-loading">
+                            <div class="spinner-small"></div>
+                            <span>Analyzing filename for suggestions...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>

@@ -1409,6 +1409,326 @@ async function deleteCategory(categoryName) {
     }
 }
 
+// ============ File Preview Modal ============
+
+/**
+ * Show file preview modal with image, metadata, and depicts suggestions
+ * @param {string} fileTitle - File title (e.g., "File:Example.jpg")
+ */
+async function showFilePreview(fileTitle) {
+    const modal = document.getElementById('file-preview-modal');
+    const titleEl = document.getElementById('preview-file-title');
+    const imageContainer = document.getElementById('preview-image-container');
+    const metaGrid = document.getElementById('preview-meta-grid');
+    const descriptionEl = document.getElementById('preview-description');
+    const viewCommonsBtn = document.getElementById('preview-view-commons');
+    const addDepictsBtn = document.getElementById('preview-add-depicts');
+    const suggestsContent = document.getElementById('suggests-content');
+
+    // Set title
+    titleEl.textContent = fileTitle.replace('File:', '');
+    _currentPreviewFile = fileTitle;
+
+    // Set initial loading state
+    imageContainer.innerHTML = `
+        <div class="preview-image-loading">
+            <div class="spinner"></div>
+            <span>Loading preview...</span>
+        </div>
+    `;
+    metaGrid.innerHTML = '';
+    descriptionEl.classList.add('hidden');
+    descriptionEl.textContent = '';
+    suggestsContent.innerHTML = `
+        <div class="suggests-loading">
+            <div class="spinner-small"></div>
+            <span>Analyzing filename for suggestions...</span>
+        </div>
+    `;
+
+    // Set action links
+    const commonsUrl = getCommonsUrl(fileTitle);
+    viewCommonsBtn.href = commonsUrl;
+    addDepictsBtn.href = commonsUrl + '#P180';
+
+    // Show modal
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    // Set up close handlers
+    const closeBtn = document.getElementById('preview-close-btn');
+    const backdrop = modal.querySelector('.modal-backdrop');
+
+    const closeHandler = () => closeFilePreview();
+    const backdropHandler = () => closeFilePreview();
+    const escHandler = (e) => { if (e.key === 'Escape') closeFilePreview(); };
+
+    closeBtn.addEventListener('click', closeHandler);
+    backdrop.addEventListener('click', backdropHandler);
+    document.addEventListener('keydown', escHandler);
+
+    // Store cleanup refs
+    modal._cleanup = () => {
+        closeBtn.removeEventListener('click', closeHandler);
+        backdrop.removeEventListener('click', backdropHandler);
+        document.removeEventListener('keydown', escHandler);
+    };
+
+    // Fetch file info asynchronously
+    try {
+        const response = await fetch(`/api/fileinfo/${encodeURIComponent(fileTitle)}`);
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            imageContainer.innerHTML = `
+                <div class="preview-image-loading">
+                    <i class="fa-solid fa-image" style="font-size: 48px; color: var(--color-text-muted);"></i>
+                    <span>Preview not available</span>
+                </div>
+            `;
+        } else {
+            // Show image
+            const thumbnailUrl = data.thumbnail_url || getThumbnailUrl(fileTitle, 800);
+            imageContainer.innerHTML = `
+                <img src="${thumbnailUrl}" 
+                     alt="${escapeHtml(fileTitle.replace('File:', ''))}"
+                     class="preview-image"
+                     onerror="this.parentElement.innerHTML='<div class=\\'preview-image-loading\\'><i class=\\'fa-solid fa-image\\' style=\\'font-size: 48px; color: var(--color-text-muted);\\'></i><span>Image could not be loaded</span></div>'">
+            `;
+
+            // Populate metadata grid
+            const metaItems = [];
+
+            if (data.width && data.height) {
+                metaItems.push({ label: 'Dimensions', value: `${data.width} × ${data.height} px` });
+            }
+            if (data.size) {
+                const sizeKB = (data.size / 1024).toFixed(1);
+                const sizeMB = (data.size / (1024 * 1024)).toFixed(2);
+                metaItems.push({ label: 'File Size', value: data.size > 1048576 ? `${sizeMB} MB` : `${sizeKB} KB` });
+            }
+            if (data.mime) {
+                metaItems.push({ label: 'Format', value: data.mime });
+            }
+            if (data.timestamp) {
+                const date = new Date(data.timestamp);
+                metaItems.push({ label: 'Uploaded', value: date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) });
+            }
+            if (data.user) {
+                metaItems.push({ label: 'Author', value: data.user });
+            }
+            if (data.license) {
+                metaItems.push({ label: 'License', value: data.license });
+            }
+
+            metaGrid.innerHTML = metaItems.map(item => `
+                <div class="preview-meta-item">
+                    <span class="preview-meta-label">${item.label}</span>
+                    <span class="preview-meta-value">${escapeHtml(item.value)}</span>
+                </div>
+            `).join('');
+
+            // Show description if available
+            if (data.description && data.description.trim()) {
+                descriptionEl.textContent = data.description;
+                descriptionEl.classList.remove('hidden');
+            }
+        }
+    } catch (error) {
+        console.error('Failed to fetch file info:', error);
+        imageContainer.innerHTML = `
+            <div class="preview-image-loading">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 48px; color: var(--color-warning);"></i>
+                <span>Failed to load preview</span>
+            </div>
+        `;
+    }
+
+    // Fetch suggests asynchronously (runs in parallel-ish)
+    loadSuggestions(fileTitle, suggestsContent);
+}
+
+/**
+ * Close the file preview modal
+ */
+function closeFilePreview() {
+    const modal = document.getElementById('file-preview-modal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+    if (modal._cleanup) {
+        modal._cleanup();
+        modal._cleanup = null;
+    }
+}
+
+/**
+ * Load Wikidata depicts suggestions for a file
+ * @param {string} fileTitle - File title
+ * @param {HTMLElement} container - Container element for suggestions
+ */
+async function loadSuggestions(fileTitle, container) {
+    try {
+        const response = await fetch(`/api/suggests/${encodeURIComponent(fileTitle)}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.suggestions || data.suggestions.length === 0) {
+            container.innerHTML = `<p class="suggests-empty">No suggestions found for this filename.</p>`;
+            return;
+        }
+
+        const chipsHtml = data.suggestions.map(s => `
+            <div class="suggest-chip">
+                <div class="suggest-info">
+                    <span class="suggest-label">${escapeHtml(s.label)}</span>
+                    <span class="suggest-qid">${escapeHtml(s.qid)}</span>
+                    ${s.description ? `<span class="suggest-desc" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</span>` : ''}
+                </div>
+                <div style="display:flex; gap:4px;">
+                    ${_isLoggedIn ? `<button class="suggest-copy-btn" onclick="addDepictsFromSuggest('${escapeHtml(s.qid)}', '${escapeHtml(s.label).replace(/'/g, "\\'")}'  , this)" title="Add depicts">
+                        <i class="fa-solid fa-plus"></i> Add
+                    </button>` : ''}
+                    <button class="suggest-copy-btn" onclick="copySuggestQid('${escapeHtml(s.qid)}', this)" title="Copy QID">
+                        <i class="fa-solid fa-copy"></i> Copy
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = `<div class="suggests-list">${chipsHtml}</div>`;
+
+    } catch (error) {
+        console.error('Failed to load suggestions:', error);
+        container.innerHTML = `<p class="suggests-error"><i class="fa-solid fa-circle-exclamation"></i> Failed to load suggestions</p>`;
+    }
+}
+
+/**
+ * Copy a Q-ID to clipboard with visual feedback
+ * @param {string} qid - Wikidata Q-ID
+ * @param {HTMLElement} btn - The button element for visual feedback
+ */
+function copySuggestQid(qid, btn) {
+    navigator.clipboard.writeText(qid).then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy';
+        }, 2000);
+    }).catch(() => {
+        // Fallback for browsers without clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = qid;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        btn.classList.add('copied');
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy';
+        }, 2000);
+    });
+}
+
+// ============ Auth Functions ============
+
+/** Track auth state globally */
+let _isLoggedIn = false;
+let _currentPreviewFile = '';
+
+/**
+ * Check auth status on page load and update UI
+ */
+async function checkAuthStatus() {
+    try {
+        const response = await fetch('/auth/status');
+        const data = await response.json();
+
+        const authBtn = document.getElementById('auth-btn');
+        const authLabel = document.getElementById('auth-label');
+
+        if (data.logged_in) {
+            _isLoggedIn = true;
+            authBtn.classList.add('logged-in');
+            authBtn.href = '/auth/logout';
+            authBtn.title = `Logged in as ${data.username}. Click to logout.`;
+            authLabel.textContent = data.username;
+            authBtn.querySelector('i').className = 'fa-solid fa-user-check';
+        } else {
+            _isLoggedIn = false;
+            authBtn.classList.remove('logged-in');
+            authBtn.href = '/auth/login';
+            authBtn.title = data.oauth_configured
+                ? 'Login with Wikimedia'
+                : 'OAuth not configured';
+            authLabel.textContent = 'Login';
+            authBtn.querySelector('i').className = 'fa-solid fa-user';
+        }
+    } catch (error) {
+        console.error('Auth check failed:', error);
+    }
+}
+
+/**
+ * Add a depicts statement from a suggestion chip
+ * @param {string} qid - Wikidata QID
+ * @param {string} label - Label of the entity 
+ * @param {HTMLElement} btn - The button element
+ */
+async function addDepictsFromSuggest(qid, label, btn) {
+    if (!_isLoggedIn) {
+        showToast('Please log in with Wikimedia first', 'warning');
+        return;
+    }
+
+    if (!_currentPreviewFile) {
+        showToast('No file selected', 'error');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+
+    try {
+        const response = await fetch('/api/add-depicts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_title: _currentPreviewFile, qid: qid })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Added!';
+            showToast(`Added "${label}" (${qid}) as depicts`, 'success');
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Failed';
+            showToast(`Failed: ${data.error}`, 'error');
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
+            }, 3000);
+        }
+    } catch (error) {
+        console.error('Add depicts failed:', error);
+        btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Error';
+        showToast('Network error adding depicts', 'error');
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
+        }, 3000);
+    }
+}
+
+// Check auth status on page load
+checkAuthStatus();
+
 // Make functions globally accessible for inline onclick handlers
 window.deleteCategory = deleteCategory;
 window.reanalyzeCategory = reanalyzeCategory;
+window.showFilePreview = showFilePreview;
+window.copySuggestQid = copySuggestQid;
+window.addDepictsFromSuggest = addDepictsFromSuggest;

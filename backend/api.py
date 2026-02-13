@@ -15,7 +15,7 @@ Enhanced with:
 import requests
 import time
 import functools
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any
 
 # API Endpoints
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
@@ -332,3 +332,170 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
             _label_cache[f"{qid}:{language}"] = label  # Cache with language
     
     return result
+
+
+@retry_on_failure(max_retries=2, base_delay=0.5)
+def fetch_file_info(file_title: str) -> Dict[str, Any]:
+    """
+    Fetch detailed file information from Wikimedia Commons.
+    
+    Args:
+        file_title: File title (e.g., 'File:Example.jpg')
+    
+    Returns:
+        Dict with thumbnail URL, dimensions, size, description, upload date, etc.
+    """
+    if not file_title.startswith("File:"):
+        file_title = f"File:{file_title}"
+    
+    params = {
+        "action": "query",
+        "titles": file_title,
+        "prop": "imageinfo",
+        "iiprop": "url|size|extmetadata|timestamp|mime|user",
+        "iiurlwidth": 800,
+        "format": "json"
+    }
+    
+    _rate_limit()
+    response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    
+    pages = data.get("query", {}).get("pages", {})
+    if not pages:
+        return {"error": "File not found"}
+    
+    page = list(pages.values())[0]
+    if "imageinfo" not in page:
+        return {"error": "No image info available"}
+    
+    info = page["imageinfo"][0]
+    extmeta = info.get("extmetadata", {})
+    
+    # Extract description (strip HTML tags for clean display)
+    description_raw = extmeta.get("ImageDescription", {}).get("value", "")
+    # Basic HTML tag stripping
+    import re
+    description = re.sub(r'<[^>]+>', '', description_raw).strip()
+    
+    return {
+        "title": file_title,
+        "thumbnail_url": info.get("thumburl", ""),
+        "original_url": info.get("url", ""),
+        "width": info.get("width", 0),
+        "height": info.get("height", 0),
+        "size": info.get("size", 0),
+        "mime": info.get("mime", ""),
+        "timestamp": info.get("timestamp", ""),
+        "user": info.get("user", ""),
+        "description": description,
+        "license": extmeta.get("LicenseShortName", {}).get("value", "Unknown"),
+        "categories": extmeta.get("Categories", {}).get("value", ""),
+    }
+
+
+def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
+    """
+    Suggest Wikidata Q-items based on keywords parsed from a file's title.
+    
+    Parses the filename into keywords, searches Wikidata for matching entities,
+    and returns top suggestions with labels, descriptions, and QIDs.
+    
+    Args:
+        file_title: File title (e.g., 'File:Golden Gate Bridge at sunset.jpg')
+        limit: Maximum suggestions to return
+    
+    Returns:
+        List of dicts with 'qid', 'label', 'description' keys
+    """
+    import re
+    
+    # Strip prefix and extension
+    name = file_title.replace("File:", "")
+    name = re.sub(r'\.[a-zA-Z0-9]+$', '', name)  # Remove extension
+    
+    # Replace common separators with spaces
+    name = name.replace("_", " ").replace("-", " ")
+    
+    # Remove common wiki noise patterns
+    name = re.sub(r'\b\d{4,}\b', '', name)  # Remove years/numbers
+    name = re.sub(r'\b[A-Z]{2,5}\s*\d+\b', '', name)  # e.g., "DSC 1234"
+    name = re.sub(r'\bIMG\b|\bDSC\b|\bP\d+\b|\bIMGP\b', '', name, flags=re.IGNORECASE)
+    
+    # Split into meaningful keywords (3+ chars)
+    stopwords = {
+        'the', 'and', 'for', 'from', 'with', 'this', 'that', 'are', 'was',
+        'has', 'have', 'been', 'not', 'but', 'its', 'his', 'her', 'their',
+        'our', 'can', 'will', 'may', 'jpg', 'jpeg', 'png', 'svg', 'tif',
+        'tiff', 'gif', 'file', 'image', 'photo', 'picture', 'crop', 'edit',
+        'version', 'original', 'commons', 'wiki', 'wikipedia'
+    }
+    
+    words = name.split()
+    keywords = [w.strip() for w in words if len(w.strip()) >= 3 and w.strip().lower() not in stopwords]
+    
+    if not keywords:
+        return []
+    
+    # Build compound search queries for better results
+    # Try the full cleaned name first, then individual keywords
+    search_queries = []
+    
+    # Full phrase (up to first 5 meaningful words)
+    full_phrase = " ".join(keywords[:5])
+    if len(keywords) > 1:
+        search_queries.append(full_phrase)
+    
+    # Individual keywords (skip very short ones for individual search)
+    for kw in keywords[:4]:
+        if len(kw) >= 4:
+            search_queries.append(kw)
+    
+    # Deduplicate
+    seen = set()
+    unique_queries = []
+    for q in search_queries:
+        ql = q.lower()
+        if ql not in seen:
+            seen.add(ql)
+            unique_queries.append(q)
+    
+    suggestions = []
+    seen_qids = set()
+    
+    for query in unique_queries:
+        if len(suggestions) >= limit:
+            break
+        
+        try:
+            params = {
+                "action": "wbsearchentities",
+                "search": query,
+                "language": "en",
+                "format": "json",
+                "limit": 3,
+                "type": "item"
+            }
+            
+            _rate_limit()
+            response = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            
+            for result in data.get("search", []):
+                qid = result.get("id", "")
+                if qid and qid not in seen_qids:
+                    seen_qids.add(qid)
+                    suggestions.append({
+                        "qid": qid,
+                        "label": result.get("label", qid),
+                        "description": result.get("description", "")
+                    })
+                    if len(suggestions) >= limit:
+                        break
+        except Exception:
+            continue
+    
+    return suggestions
+
