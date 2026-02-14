@@ -57,8 +57,9 @@ The application follows a modular architecture:
 ### Prerequisites
 - Python 3.8 or higher
 - pip (Python package manager)
+- A Wikimedia account (for OAuth configuration)
 
-### Setup
+### Quick Setup
 
 1. **Clone the repository**
    ```bash
@@ -71,21 +72,53 @@ The application follows a modular architecture:
    pip install -r requirements.txt
    ```
 
-3. **Configuration**
-   Set the following environment variables (required for OAuth functionality):
+3. **Configure OAuth (Required for editing features)**
+   
+   **Option A: Automated Setup (Recommended)**
    ```bash
-   export OAUTH_CLIENT_ID="your_client_id"
-   export OAUTH_CLIENT_SECRET="your_client_secret"
-   export FLASK_SECRET_KEY="your_secure_secret_key"
+   python setup_oauth.py
    ```
+   The script will guide you through:
+   - Registering an OAuth application with Wikimedia
+   - Setting your Client ID and Secret
+   - Generating a secure Flask secret key
+   - Creating your `.env` file automatically
+
+   **Option B: Manual Setup**
+   
+   a. Register an OAuth application:
+      - Visit: https://meta.wikimedia.org/wiki/Special:OAuthConsumerRegistration/propose/oauth2
+      - Application name: `Commons Depicts Analyzer (Development)`
+      - Callback URL: `http://localhost:5000/auth/callback`
+      - Grants: Check **"Basic rights"** and **"Edit structured data"**
+      - Copy your **Client ID** and **Client Secret**
+   
+   b. Create a `.env` file in the project root:
+      ```bash
+      cp .env.example .env
+      ```
+   
+   c. Edit `.env` and add your credentials:
+      ```env
+      OAUTH_CLIENT_ID=your_client_id_here
+      OAUTH_CLIENT_SECRET=your_client_secret_here
+      OAUTH_CALLBACK_URL=http://localhost:5000/auth/callback
+      FLASK_SECRET_KEY=your_generated_secret_key_here
+      ```
+      
+      Generate a Flask secret key:
+      ```bash
+      python -c "import secrets; print(secrets.token_hex(32))"
+      ```
 
 4. **Run the application**
    ```bash
-   cd backend
-   python main.py
+   python backend/main.py
    ```
 
 The application will be accessible at `http://localhost:5000`.
+
+> **Note**: OAuth is only required if you want to **add depicts statements** through the UI. The analysis features work without OAuth.
 
 ---
 
