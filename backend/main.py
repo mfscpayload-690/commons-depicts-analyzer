@@ -189,6 +189,7 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
 class _AnalysisCancelled(Exception):
     """Raised when a job is cancelled mid-flight."""
 
+
 analysis_jobs = {}
 analysis_lock = threading.Lock()
 

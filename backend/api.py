@@ -498,4 +498,3 @@ def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
             continue
 
     return suggestions
-
