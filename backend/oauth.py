@@ -47,10 +47,10 @@ def is_oauth_configured() -> bool:
 def get_authorize_url(state: str) -> str:
     """
     Generate the OAuth authorization URL.
-    
+
     Args:
         state: Cryptographically random state string for CSRF protection
-    
+
     Returns:
         Authorization URL to redirect the user to
     """
@@ -67,14 +67,14 @@ def get_authorize_url(state: str) -> str:
 def exchange_code_for_token(code: str) -> Tuple[bool, Dict[str, Any]]:
     """
     Exchange an authorization code for an access token.
-    
+
     Args:
         code: Authorization code from the callback
-    
+
     Returns:
         Tuple of (success, token_data or error_data)
         token_data includes: access_token, token_type, expires_in
-    
+
     Security:
         - Uses HTTPS POST (never GET for token exchange)
         - Strict timeout prevents hanging connections
@@ -93,7 +93,7 @@ def exchange_code_for_token(code: str) -> Tuple[bool, Dict[str, Any]]:
             timeout=TOKEN_EXCHANGE_TIMEOUT,
             verify=True  # Enforce TLS certificate verification
         )
-        
+
         if response.status_code == 200:
             token_data = response.json()
             # Validate required fields exist
@@ -118,13 +118,13 @@ def exchange_code_for_token(code: str) -> Tuple[bool, Dict[str, Any]]:
 def get_user_profile(access_token: str) -> Tuple[bool, Dict[str, Any]]:
     """
     Get the authenticated user's profile from Wikimedia.
-    
+
     Args:
         access_token: OAuth access token
-    
+
     Returns:
         Tuple of (success, profile_data or error_data)
-    
+
     Security:
         - Token sent via Authorization header (not query param)
         - Strict timeout prevents hanging connections
@@ -138,7 +138,7 @@ def get_user_profile(access_token: str) -> Tuple[bool, Dict[str, Any]]:
             timeout=PROFILE_FETCH_TIMEOUT,
             verify=True
         )
-        
+
         if response.status_code == 200:
             profile = response.json()
             # Only extract safe fields
@@ -163,10 +163,10 @@ def get_user_profile(access_token: str) -> Tuple[bool, Dict[str, Any]]:
 def revoke_token(access_token: str) -> bool:
     """
     Attempt to revoke an OAuth token on the Wikimedia side.
-    
+
     This is a best-effort operation. Even if revocation fails,
     the local session will still be cleared.
-    
+
     Returns:
         True if revocation succeeded, False otherwise
     """
@@ -191,18 +191,18 @@ def revoke_token(access_token: str) -> bool:
 def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple[bool, str]:
     """
     Add a depicts (P180) statement to a Wikimedia Commons file.
-    
+
     Uses the Wikibase API to create a new P180 claim on the file's
     structured data entity.
-    
+
     Args:
         access_token: OAuth access token with edit permissions
         file_title: Validated file title (e.g., 'File:Example.jpg')
         qid: Validated Wikidata Q-ID (e.g., 'Q123')
-    
+
     Returns:
         Tuple of (success, message)
-    
+
     Security:
         - Input validation must be done BEFORE calling this function
         - Token sent via Authorization header
@@ -210,13 +210,13 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
     """
     if not file_title.startswith("File:"):
         file_title = f"File:{file_title}"
-    
+
     headers = {
         "Authorization": f"Bearer {access_token}",
         "User-Agent": USER_AGENT,
         "Accept": "application/json"
     }
-    
+
     try:
         # Step 1: Get the page ID to construct the media ID
         params = {
@@ -230,7 +230,7 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         )
         response.raise_for_status()
         data = response.json()
-        
+
         pages = data.get("query", {}).get("pages", {})
         if not pages:
             return False, "File not found on Commons"
@@ -238,9 +238,9 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         page_id = list(pages.keys())[0]
         if page_id == "-1":
             return False, f"File not found on Commons"
-        
+
         media_id = f"M{page_id}"
-        
+
         # Step 2: Get a CSRF token (fresh for each write)
         token_params = {
             "action": "query",
@@ -257,7 +257,7 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
         csrf_token = token_response.json().get("query", {}).get("tokens", {}).get("csrftoken")
         if not csrf_token or csrf_token == "+\\":
             return False, "Failed to obtain CSRF token. Please re-authenticate."
-        
+
         # Step 3: Add the depicts claim
         numeric_id = int(qid[1:])
         value_payload = json.dumps({"entity-type": "item", "numeric-id": numeric_id})
@@ -273,14 +273,14 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
             "summary": "Added depicts statement via Commons Depicts Analyzer",
             "assert": "user"
         }
-        
+
         claim_response = requests.post(
             COMMONS_API, data=claim_data, headers=headers,
             timeout=API_REQUEST_TIMEOUT, verify=True
         )
         claim_response.raise_for_status()
         result = claim_response.json()
-        
+
         if "error" in result:
             error_info = result["error"].get("info", "Unknown error")
             error_code = result["error"].get("code", "unknown")
@@ -290,10 +290,10 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
             if error_code in {"assertuserfailed", "notloggedin"}:
                 return False, "Authentication expired. Please log in again."
             return False, "Failed to add depicts statement. Please try again."
-        
+
         logger.info(f"Successfully added depicts {qid} to {file_title}")
         return True, f"Successfully added depicts {qid} to {file_title}"
-    
+
     except requests.exceptions.Timeout:
         logger.error("API request timed out while adding depicts")
         return False, "Request timed out. Please try again."

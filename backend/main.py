@@ -25,12 +25,12 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from api import (fetch_category_files, check_depicts, resolve_labels, 
+from api import (fetch_category_files, check_depicts, resolve_labels,
                  fetch_category_suggestions, fetch_file_info, suggest_depicts)
-from database import (init_db, insert_file, get_files_by_category, 
+from database import (init_db, insert_file, get_files_by_category,
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
 from config import (
-    FLASK_SECRET_KEY, ALLOWED_ORIGINS, IS_PRODUCTION,
+    FLASK_SECRET_KEY, ALLOWED_ORIGINS,
     SESSION_LIFETIME_MINUTES, SESSION_COOKIE_SECURE,
     SESSION_COOKIE_HTTPONLY, SESSION_COOKIE_SAMESITE,
     RATE_LIMIT_DEFAULT, RATE_LIMIT_AUTH, RATE_LIMIT_CALLBACK, RATE_LIMIT_API_WRITE,
@@ -39,9 +39,8 @@ from config import (
 from oauth import (is_oauth_configured, get_authorize_url, exchange_code_for_token,
                    get_user_profile, add_depicts_statement, revoke_token)
 from security import (
-    validate_qid, validate_file_title, validate_category,
-    sanitize_error, add_security_headers, generate_csrf_token,
-    csrf_required, login_required, logger as security_logger
+    validate_qid, validate_file_title, add_security_headers,
+    generate_csrf_token, csrf_required, login_required
 )
 
 logger = logging.getLogger("app")
@@ -87,22 +86,22 @@ init_db()
 def analyze_category(category_name: str, progress_callback=None, progress_hook=None, language: str = "en") -> dict:
     """
     Run full analysis pipeline for a category.
-    
+
     Args:
         category_name: Commons category name
         progress_callback: Optional callback for progress updates
         language: Language code for depicts labels (default: 'en')
-    
+
     Returns:
         Analysis results dict
     """
     # Normalize category name
     if not category_name.startswith("Category:"):
         category_name = f"Category:{category_name}"
-    
+
     # Clear previous results for this category
     clear_category(category_name)
-    
+
     # Step 1: Fetch all files
     if progress_callback:
         progress_callback("Fetching files from category...")
@@ -114,7 +113,7 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
             "processed": 0,
             "total": None
         })
-    
+
     try:
         files = fetch_category_files(category_name)
     except ValueError as e:
@@ -122,10 +121,10 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
         return {"error": str(e)}
     except Exception as e:
         return {"error": f"Failed to fetch category: {str(e)}"}
-    
+
     if not files:
         return {"error": "No files found in category"}
-    
+
     # Step 2: Check each file for depicts
     total = len(files)
 
@@ -136,7 +135,7 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
             "processed": 0,
             "total": total
         })
-    
+
     for i, file_title in enumerate(files):
         if progress_callback:
             progress_callback(f"Checking file {i + 1}/{total}: {file_title}")
@@ -148,25 +147,25 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
                 "processed": i + 1,
                 "total": total
             })
-        
+
         try:
             has_depicts, qids = check_depicts(file_title)
-            
+
             # Resolve labels if there are QIDs (with language parameter)
             depicts_str = None
             if qids:
                 labels = resolve_labels(qids, language)  # Pass language here
                 label_list = [labels.get(qid, qid) for qid in qids]
                 depicts_str = ", ".join(label_list)
-            
+
             # Store in database
             insert_file(file_title, category_name, depicts_str, has_depicts)
-            
+
         except Exception as e:
             # Log error but continue with other files
             print(f"Error processing {file_title}: {e}", file=sys.stderr)
             insert_file(file_title, category_name, None, False)
-    
+
     # Step 3: Get results
     if progress_hook:
         progress_hook({
@@ -177,7 +176,7 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
         })
     stats = get_statistics(category_name)
     files_data = get_files_by_category(category_name)
-    
+
     return {
         "category": category_name,
         "statistics": stats,
@@ -301,20 +300,20 @@ def serve_static(filename):
 def api_analyze():
     """
     Analyze a Commons category.
-    
+
     Request body: {"category": "Category:Example"}
     Query params: ?language=en (optional, default: 'en')
     Returns: Analysis results with statistics and file lists
     """
     data = request.get_json()
-    
+
     if not data or "category" not in data:
         return jsonify({"error": "Missing 'category' in request body"}), 400
-    
+
     category = data["category"].strip()
     if not category:
         return jsonify({"error": "Category name cannot be empty"}), 400
-    
+
     async_mode = request.args.get("async") == "1"
     language = request.args.get("language", "en")  # Get language parameter
 
@@ -334,20 +333,20 @@ def api_analyze():
 def api_results(category):
     """
     Get stored results for a category.
-    
+
     Returns cached analysis results from database.
     """
     # Normalize category name
     if not category.startswith("Category:"):
         category = f"Category:{category}"
-    
+
     stats = get_statistics(category)
-    
+
     if stats["total"] == 0:
         return jsonify({"error": "No results found for this category"}), 404
-    
+
     files_data = get_files_by_category(category)
-    
+
     return jsonify({
         "category": category,
         "statistics": stats,
@@ -415,14 +414,14 @@ def api_suggest():
 def api_verify(category):
     """
     Verify that a category's data was saved to the database.
-    
+
     Returns verification info including record counts, timestamps, and sample data.
     """
     result = verify_category_saved(category)
-    
+
     if not result.get("verified"):
         return jsonify(result), 404
-    
+
     return jsonify(result)
 
 
@@ -430,7 +429,7 @@ def api_verify(category):
 def api_history():
     """
     Get a list of all previously analyzed categories.
-    
+
     Returns category names, file counts, and last analyzed timestamps.
     """
     categories = get_all_categories()
@@ -444,22 +443,22 @@ def api_history():
 def api_delete_category(category):
     """
     Delete a category and all its files from the database.
-    
+
     Args:
         category: Category name to delete
     """
     # Normalize category name
     if not category.startswith("Category:"):
         category = f"Category:{category}"
-    
+
     # Check if category exists
     stats = get_statistics(category)
     if stats["total"] == 0:
         return jsonify({"error": "Category not found in database"}), 404
-    
+
     # Delete the category
     clear_category(category)
-    
+
     return jsonify({
         "success": True,
         "message": f"Deleted {stats['total']} files from {category}",
@@ -471,25 +470,25 @@ def api_delete_category(category):
 def api_export(category):
     """
     Export category analysis results as CSV or JSON.
-    
+
     Query params: ?format=csv|json (default: csv)
     """
     from flask import Response
     import csv
     from io import StringIO
-    
+
     # Normalize category name
     if not category.startswith("Category:"):
         category = f"Category:{category}"
-    
+
     # Get data
     stats = get_statistics(category)
     if stats["total"] == 0:
         return jsonify({"error": "No results found for this category"}), 404
-    
+
     files_data = get_files_by_category(category)
     export_format = request.args.get("format", "csv").lower()
-    
+
     if export_format == "json":
         # JSON export
         result = {
@@ -502,19 +501,23 @@ def api_export(category):
             json.dumps(result, indent=2),
             mimetype="application/json",
             headers={
-                "Content-Disposition": f"attachment; filename={category.replace('Category:', '').replace(' ', '_')}_export.json"
+                "Content-Disposition": (
+                    "attachment; filename="
+                    + category.replace('Category:', '').replace(' ', '_')
+                    + "_export.json"
+                )
             }
         )
         return response
-    
+
     else:
         # CSV export
         output = StringIO()
         writer = csv.writer(output)
-        
+
         # Header
         writer.writerow(["File Name", "Has Depicts", "Depicts Labels"])
-        
+
         # Data rows
         for file in files_data:
             writer.writerow([
@@ -522,35 +525,40 @@ def api_export(category):
                 "Yes" if file["has_depicts"] else "No",
                 file.get("depicts", "")
             ])
-        
+
         csv_data = output.getvalue()
         output.close()
-        
+
         response = Response(
             csv_data,
             mimetype="text/csv",
             headers={
-                "Content-Disposition": f"attachment; filename={category.replace('Category:', '').replace(' ', '_')}_export.csv"
+                "Content-Disposition": (
+                    "attachment; filename="
+                    + category.replace('Category:', '').replace(' ', '_')
+                    + "_export.csv"
+                )
             }
         )
         return response
+
 
 @app.route("/api/fileinfo/<path:file_title>", methods=["GET"])
 def api_fileinfo(file_title):
     """
     Get detailed file information from Wikimedia Commons.
-    
+
     Returns thumbnail URL, dimensions, description, license, etc.
     """
     try:
         if not file_title.startswith("File:"):
             file_title = f"File:{file_title}"
-        
+
         info = fetch_file_info(file_title)
-        
+
         if "error" in info:
             return jsonify({"error": info["error"]}), 404
-        
+
         return jsonify(info)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -560,16 +568,16 @@ def api_fileinfo(file_title):
 def api_suggests(file_title):
     """
     Get Wikidata depicts suggestions based on file title keywords.
-    
+
     Returns a list of suggested Q-items with labels and descriptions.
     """
     try:
         if not file_title.startswith("File:"):
             file_title = f"File:{file_title}"
-        
+
         limit = request.args.get("limit", 5, type=int)
         suggestions = suggest_depicts(file_title, limit=min(limit, 10))
-        
+
         return jsonify({"suggestions": suggestions, "file": file_title})
     except Exception as e:
         return jsonify({"error": str(e), "suggestions": []}), 500
@@ -584,7 +592,7 @@ def auth_login():
     """Redirect user to Wikimedia OAuth authorization."""
     if not is_oauth_configured():
         return jsonify({"error": "OAuth is not configured."}), 503
-    
+
     # Generate cryptographically secure state for CSRF protection
     state = secrets.token_urlsafe(32)
     session["oauth_state"] = state
@@ -598,41 +606,41 @@ def auth_callback():
     code = request.args.get("code")
     state = request.args.get("state")
     error = request.args.get("error")
-    
+
     # User denied authorization
     if error:
         logger.info(f"OAuth authorization denied by user: {error}")
         return redirect("/?auth_error=denied")
-    
+
     if not code:
         logger.warning("OAuth callback missing code parameter")
         return redirect("/?auth_error=no_code")
-    
+
     # Verify state matches (CSRF protection)
     stored_state = session.get("oauth_state")
     if not stored_state or not state:
         logger.warning("OAuth state parameter missing")
         return redirect("/?auth_error=state_mismatch")
-    
+
     # Constant-time comparison to prevent timing attacks
     import hmac
     if not hmac.compare_digest(state, stored_state):
         logger.warning("OAuth state mismatch — possible CSRF attack")
         return redirect("/?auth_error=state_mismatch")
-    
+
     # Exchange code for token
     success, token_data = exchange_code_for_token(code)
     if not success:
         logger.error("OAuth token exchange failed")
         return redirect("/?auth_error=token_failed")
-    
+
     # SESSION REGENERATION: Prevent session fixation attacks
     # Clear old session data, start fresh
     session.clear()
-    
+
     access_token = token_data.get("access_token")
     session["access_token"] = access_token
-    
+
     # Track token expiry
     expires_in = token_data.get("expires_in")
     if expires_in:
@@ -640,16 +648,16 @@ def auth_callback():
     else:
         # Default: 1 hour expiry
         session["token_expires_at"] = time.time() + 3600
-    
+
     # Get user profile
     profile_success, profile = get_user_profile(access_token)
     if profile_success:
         session["username"] = profile.get("username", "Unknown")
         session["user_id"] = profile.get("sub", "")
-    
+
     # Generate CSRF token for subsequent write operations
     generate_csrf_token()
-    
+
     logger.info(f"User logged in: {session.get('username', 'Unknown')}")
     return redirect("/?auth_success=true")
 
@@ -662,7 +670,7 @@ def auth_logout():
     if access_token:
         revoke_token(access_token)
         logger.info(f"User logged out: {session.get('username', 'Unknown')}")
-    
+
     # Clear ALL session data (nuclear option — safest)
     session.clear()
     return redirect("/")
@@ -672,24 +680,24 @@ def auth_logout():
 def auth_status():
     """Check current auth status."""
     logged_in = "access_token" in session
-    
+
     # Auto-expire if token is past its lifetime
     if logged_in:
         token_expiry = session.get("token_expires_at")
         if token_expiry and time.time() > token_expiry:
             session.clear()
             logged_in = False
-    
+
     response_data = {
         "logged_in": logged_in,
         "username": session.get("username", "") if logged_in else "",
         "oauth_configured": is_oauth_configured()
     }
-    
+
     # Include CSRF token for authenticated users (needed for write operations)
     if logged_in:
         response_data["csrf_token"] = session.get("_csrf_token", generate_csrf_token())
-    
+
     return jsonify(response_data)
 
 
@@ -700,7 +708,7 @@ def auth_status():
 def api_add_depicts():
     """
     Add a depicts (P180) statement to a Commons file.
-    
+
     Security:
     - Requires valid authentication (login_required)
     - Requires valid CSRF token (csrf_required)
@@ -710,16 +718,16 @@ def api_add_depicts():
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body required"}), 400
-    
+
     # Validate and sanitize inputs
     try:
         file_title = validate_file_title(data.get("file_title", ""))
         qid = validate_qid(data.get("qid", ""))
     except ValueError as ve:
         return jsonify({"error": str(ve)}), 400
-    
+
     success, message = add_depicts_statement(session["access_token"], file_title, qid)
-    
+
     if success:
         logger.info(f"Depicts {qid} added to {file_title} by {session.get('username')}")
         return jsonify({"success": True, "message": message})
@@ -744,20 +752,20 @@ def cli_main():
         action="store_true",
         help="Output results as JSON"
     )
-    
+
     args = parser.parse_args()
-    
+
     def progress(msg):
         print(f"  {msg}", file=sys.stderr)
-    
+
     print(f"\n[*] Analyzing: {args.category}\n", file=sys.stderr)
-    
+
     result = analyze_category(args.category, progress_callback=progress)
-    
+
     if "error" in result:
         print(f"\n[ERROR] {result['error']}", file=sys.stderr)
         sys.exit(1)
-    
+
     if args.json:
         print(json.dumps(result, indent=2))
     else:
@@ -768,12 +776,12 @@ def cli_main():
         print(f"  Total files:      {stats['total']}", file=sys.stderr)
         print(f"  With depicts:     {stats['with_depicts']} [OK]", file=sys.stderr)
         print(f"  Without depicts:  {stats['without_depicts']} [X]", file=sys.stderr)
-        
+
         if stats["total"] > 0:
             coverage = (stats["with_depicts"] / stats["total"]) * 100
             print(f"  Coverage:         {coverage:.1f}%", file=sys.stderr)
-        
-        print(f"\n[FILES] Without depicts:", file=sys.stderr)
+
+        print("\n[FILES] Without depicts:", file=sys.stderr)
         for f in result["files"]:
             if not f["has_depicts"]:
                 print(f"    - {f['file_name']}", file=sys.stderr)
