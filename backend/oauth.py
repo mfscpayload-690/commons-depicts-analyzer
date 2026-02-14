@@ -110,7 +110,7 @@ def exchange_code_for_token(code: str) -> Tuple[bool, Dict[str, Any]]:
     except requests.exceptions.SSLError:
         logger.error("SSL verification failed during token exchange")
         return False, {"error": "Secure connection could not be established"}
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error during token exchange")
         return False, {"error": "Token exchange failed due to an internal error"}
 
@@ -155,7 +155,7 @@ def get_user_profile(access_token: str) -> Tuple[bool, Dict[str, Any]]:
     except requests.exceptions.Timeout:
         logger.error("Profile fetch timed out")
         return False, {"error": "Profile service did not respond in time"}
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error fetching profile")
         return False, {"error": "Failed to retrieve user profile"}
 
@@ -237,7 +237,7 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
 
         page_id = list(pages.keys())[0]
         if page_id == "-1":
-            return False, f"File not found on Commons"
+            return False, "File not found on Commons"
 
         media_id = f"M{page_id}"
 
@@ -297,9 +297,9 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
     except requests.exceptions.Timeout:
         logger.error("API request timed out while adding depicts")
         return False, "Request timed out. Please try again."
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         logger.exception("API request failed while adding depicts")
         return False, "Failed to communicate with Wikimedia API"
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error adding depicts")
         return False, "An unexpected error occurred"

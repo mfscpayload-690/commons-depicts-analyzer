@@ -83,7 +83,11 @@ ALLOWED_ORIGINS = (
 )
 
 if IS_PRODUCTION and not ALLOWED_ORIGINS:
-    print("WARNING: No ALLOWED_ORIGINS configured in production. CORS will block all cross-origin requests.", file=sys.stderr)
+    print(
+        "WARNING: No ALLOWED_ORIGINS configured in production. "
+        "CORS will block all cross-origin requests.",
+        file=sys.stderr
+    )
 
 # ============ Rate Limiting ============
 RATE_LIMIT_DEFAULT = os.environ.get("RATE_LIMIT_DEFAULT", "200 per hour")
