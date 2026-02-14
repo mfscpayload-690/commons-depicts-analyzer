@@ -13,6 +13,19 @@ SECURITY NOTES:
 
 import os
 import sys
+from pathlib import Path
+
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    # Find .env file in project root (parent of backend/)
+    env_path = Path(__file__).parent.parent / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✓ Loaded environment variables from {env_path}")
+except ImportError:
+    # python-dotenv not installed, env vars must be set manually
+    pass
 
 # ============ Environment ============
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").lower()
@@ -70,7 +83,11 @@ ALLOWED_ORIGINS = (
 )
 
 if IS_PRODUCTION and not ALLOWED_ORIGINS:
-    print("WARNING: No ALLOWED_ORIGINS configured in production. CORS will block all cross-origin requests.", file=sys.stderr)
+    print(
+        "WARNING: No ALLOWED_ORIGINS configured in production. "
+        "CORS will block all cross-origin requests.",
+        file=sys.stderr
+    )
 
 # ============ Rate Limiting ============
 RATE_LIMIT_DEFAULT = os.environ.get("RATE_LIMIT_DEFAULT", "200 per hour")

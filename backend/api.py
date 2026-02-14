@@ -49,7 +49,7 @@ def _rate_limit():
 def retry_on_failure(max_retries: int = 3, base_delay: float = 1.0):
     """
     Decorator to retry failed API calls with exponential backoff.
-    
+
     Args:
         max_retries: Maximum number of retry attempts
         base_delay: Initial delay in seconds (doubles each retry)
@@ -75,10 +75,10 @@ def retry_on_failure(max_retries: int = 3, base_delay: float = 1.0):
 def validate_category_exists(category_name: str) -> Tuple[bool, Optional[str]]:
     """
     Check if a category exists on Wikimedia Commons.
-    
+
     Args:
         category_name: Category name (with 'Category:' prefix)
-    
+
     Returns:
         Tuple of (exists: bool, error_message: Optional[str])
     """
@@ -88,20 +88,20 @@ def validate_category_exists(category_name: str) -> Tuple[bool, Optional[str]]:
         "titles": category_name,
         "format": "json"
     }
-    
+
     try:
         response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
         response.raise_for_status()
         data = response.json()
-        
+
         pages = data.get("query", {}).get("pages", {})
         if not pages:
             return (False, f"Category '{category_name}' not found on Commons")
-        
+
         page_id = list(pages.keys())[0]
         if page_id == "-1":
             return (False, f"Category '{category_name}' does not exist on Wikimedia Commons")
-        
+
         return (True, None)
     except requests.exceptions.RequestException as e:
         return (False, f"Network error checking category: {str(e)}")
@@ -152,13 +152,13 @@ def fetch_category_suggestions(query: str, limit: int = 8) -> List[str]:
 def fetch_category_files(category_name: str) -> List[str]:
     """
     Fetch all file titles from a Wikimedia Commons category.
-    
+
     Args:
         category_name: Category name (with or without 'Category:' prefix)
-    
+
     Returns:
         List of file titles (e.g., ['File:Example.jpg', ...])
-    
+
     Raises:
         ValueError: If category doesn't exist or is empty
         requests.exceptions.RequestException: If API call fails after retries
@@ -166,12 +166,12 @@ def fetch_category_files(category_name: str) -> List[str]:
     # Normalize category name
     if not category_name.startswith("Category:"):
         category_name = f"Category:{category_name}"
-    
+
     # Validate category exists before fetching
     exists, error_msg = validate_category_exists(category_name)
     if not exists:
         raise ValueError(error_msg)
-    
+
     files = []
     params = {
         "action": "query",
@@ -181,28 +181,28 @@ def fetch_category_files(category_name: str) -> List[str]:
         "cmlimit": "500",  # Max allowed per request
         "format": "json"
     }
-    
+
     page_count = 0
     while True:
         _rate_limit()  # Rate limit each request
         response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=90)
         response.raise_for_status()
         data = response.json()
-        
+
         # Extract file titles
         members = data.get("query", {}).get("categorymembers", [])
         for member in members:
             files.append(member["title"])
-        
+
         page_count += 1
         print(f"  [API] Fetched page {page_count}, total files so far: {len(files)}")
-        
+
         # Check for more pages
         if "continue" in data:
             params["cmcontinue"] = data["continue"]["cmcontinue"]
         else:
             break
-    
+
     return files
 
 
@@ -210,12 +210,12 @@ def fetch_category_files(category_name: str) -> List[str]:
 def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
     """
     Check if a Commons file has depicts (P180) statements.
-    
+
     Uses Structured Data on Commons (SDC) via wbgetentities.
-    
+
     Args:
         file_title: File title (e.g., 'File:Example.jpg')
-    
+
     Returns:
         Tuple of (has_depicts: bool, qid_list: list of QIDs)
     """
@@ -226,43 +226,43 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
         "titles": file_title,
         "format": "json"
     }
-    
+
     _rate_limit()  # Rate limit
     response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
     response.raise_for_status()
     data = response.json()
-    
+
     pages = data.get("query", {}).get("pages", {})
     if not pages:
         return (False, [])
-    
+
     page_id = list(pages.keys())[0]
     if page_id == "-1":
         return (False, [])  # File not found
-    
+
     # Now get the structured data using the M-prefixed ID
     media_id = f"M{page_id}"
-    
+
     sdc_params = {
         "action": "wbgetentities",
         "ids": media_id,
         "format": "json"
     }
-    
+
     _rate_limit()  # Rate limit
     sdc_response = requests.get(COMMONS_API, params=sdc_params, headers=HEADERS, timeout=30)
     sdc_response.raise_for_status()
     sdc_data = sdc_response.json()
-    
+
     entity = sdc_data.get("entities", {}).get(media_id, {})
     statements = entity.get("statements", {})
-    
+
     # Check for P180 (depicts) property
     p180_claims = statements.get("P180", [])
-    
+
     if not p180_claims:
         return (False, [])
-    
+
     # Extract QIDs from depicts claims
     qids = []
     for claim in p180_claims:
@@ -272,7 +272,7 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
             qid = datavalue.get("value", {}).get("id")
             if qid:
                 qids.append(qid)
-    
+
     return (len(qids) > 0, qids)
 
 
@@ -280,22 +280,22 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
 def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
     """
     Resolve Wikidata QIDs to labels in specified language.
-    
+
     Uses caching to avoid repeated API calls for the same QIDs.
-    
+
     Args:
         qids: List of QIDs (e.g., ['Q123', 'Q456'])
         language: Language code (e.g., 'en', 'fr', 'de', 'es', 'hi', 'ml')
-    
+
     Returns:
         Dict mapping QID to label (e.g., {'Q123': 'Cat', 'Q456': 'Dog'})
     """
     if not qids:
         return {}
-    
+
     result = {}
     qids_to_fetch = []
-    
+
     # Check cache first (cache key includes language)
     for qid in qids:
         cache_key = f"{qid}:{language}"
@@ -303,14 +303,14 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
             result[qid] = _label_cache[cache_key]
         else:
             qids_to_fetch.append(qid)
-    
+
     if not qids_to_fetch:
         return result
-    
+
     # Fetch uncached labels (batch up to 50 at a time)
     for i in range(0, len(qids_to_fetch), 50):
         batch = qids_to_fetch[i:i + 50]
-        
+
         params = {
             "action": "wbgetentities",
             "ids": "|".join(batch),
@@ -318,11 +318,11 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
             "languages": language,
             "format": "json"
         }
-        
+
         response = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=30)
         response.raise_for_status()
         data = response.json()
-        
+
         entities = data.get("entities", {})
         for qid, entity in entities.items():
             labels = entity.get("labels", {})
@@ -330,7 +330,7 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
             label = labels.get(language, {}).get("value") or labels.get("en", {}).get("value", qid)
             result[qid] = label
             _label_cache[f"{qid}:{language}"] = label  # Cache with language
-    
+
     return result
 
 
@@ -338,16 +338,16 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
 def fetch_file_info(file_title: str) -> Dict[str, Any]:
     """
     Fetch detailed file information from Wikimedia Commons.
-    
+
     Args:
         file_title: File title (e.g., 'File:Example.jpg')
-    
+
     Returns:
         Dict with thumbnail URL, dimensions, size, description, upload date, etc.
     """
     if not file_title.startswith("File:"):
         file_title = f"File:{file_title}"
-    
+
     params = {
         "action": "query",
         "titles": file_title,
@@ -356,29 +356,29 @@ def fetch_file_info(file_title: str) -> Dict[str, Any]:
         "iiurlwidth": 800,
         "format": "json"
     }
-    
+
     _rate_limit()
     response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
     response.raise_for_status()
     data = response.json()
-    
+
     pages = data.get("query", {}).get("pages", {})
     if not pages:
         return {"error": "File not found"}
-    
+
     page = list(pages.values())[0]
     if "imageinfo" not in page:
         return {"error": "No image info available"}
-    
+
     info = page["imageinfo"][0]
     extmeta = info.get("extmetadata", {})
-    
+
     # Extract description (strip HTML tags for clean display)
     description_raw = extmeta.get("ImageDescription", {}).get("value", "")
     # Basic HTML tag stripping
     import re
     description = re.sub(r'<[^>]+>', '', description_raw).strip()
-    
+
     return {
         "title": file_title,
         "thumbnail_url": info.get("thumburl", ""),
@@ -398,31 +398,31 @@ def fetch_file_info(file_title: str) -> Dict[str, Any]:
 def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
     """
     Suggest Wikidata Q-items based on keywords parsed from a file's title.
-    
+
     Parses the filename into keywords, searches Wikidata for matching entities,
     and returns top suggestions with labels, descriptions, and QIDs.
-    
+
     Args:
         file_title: File title (e.g., 'File:Golden Gate Bridge at sunset.jpg')
         limit: Maximum suggestions to return
-    
+
     Returns:
         List of dicts with 'qid', 'label', 'description' keys
     """
     import re
-    
+
     # Strip prefix and extension
     name = file_title.replace("File:", "")
     name = re.sub(r'\.[a-zA-Z0-9]+$', '', name)  # Remove extension
-    
+
     # Replace common separators with spaces
     name = name.replace("_", " ").replace("-", " ")
-    
+
     # Remove common wiki noise patterns
     name = re.sub(r'\b\d{4,}\b', '', name)  # Remove years/numbers
     name = re.sub(r'\b[A-Z]{2,5}\s*\d+\b', '', name)  # e.g., "DSC 1234"
     name = re.sub(r'\bIMG\b|\bDSC\b|\bP\d+\b|\bIMGP\b', '', name, flags=re.IGNORECASE)
-    
+
     # Split into meaningful keywords (3+ chars)
     stopwords = {
         'the', 'and', 'for', 'from', 'with', 'this', 'that', 'are', 'was',
@@ -431,27 +431,27 @@ def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
         'tiff', 'gif', 'file', 'image', 'photo', 'picture', 'crop', 'edit',
         'version', 'original', 'commons', 'wiki', 'wikipedia'
     }
-    
+
     words = name.split()
     keywords = [w.strip() for w in words if len(w.strip()) >= 3 and w.strip().lower() not in stopwords]
-    
+
     if not keywords:
         return []
-    
+
     # Build compound search queries for better results
     # Try the full cleaned name first, then individual keywords
     search_queries = []
-    
+
     # Full phrase (up to first 5 meaningful words)
     full_phrase = " ".join(keywords[:5])
     if len(keywords) > 1:
         search_queries.append(full_phrase)
-    
+
     # Individual keywords (skip very short ones for individual search)
     for kw in keywords[:4]:
         if len(kw) >= 4:
             search_queries.append(kw)
-    
+
     # Deduplicate
     seen = set()
     unique_queries = []
@@ -460,14 +460,14 @@ def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
         if ql not in seen:
             seen.add(ql)
             unique_queries.append(q)
-    
+
     suggestions = []
     seen_qids = set()
-    
+
     for query in unique_queries:
         if len(suggestions) >= limit:
             break
-        
+
         try:
             params = {
                 "action": "wbsearchentities",
@@ -477,12 +477,12 @@ def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
                 "limit": 3,
                 "type": "item"
             }
-            
+
             _rate_limit()
             response = requests.get(WIKIDATA_API, params=params, headers=HEADERS, timeout=15)
             response.raise_for_status()
             data = response.json()
-            
+
             for result in data.get("search", []):
                 qid = result.get("id", "")
                 if qid and qid not in seen_qids:
@@ -496,6 +496,5 @@ def suggest_depicts(file_title: str, limit: int = 5) -> List[Dict[str, str]]:
                         break
         except Exception:
             continue
-    
-    return suggestions
 
+    return suggestions
