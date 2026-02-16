@@ -15,6 +15,8 @@ Enhanced with:
 import requests
 import time
 import functools
+import threading
+from collections import OrderedDict
 from typing import List, Tuple, Dict, Optional, Any
 
 # API Endpoints
@@ -26,8 +28,11 @@ HEADERS = {
     "User-Agent": "CommonsDepictsAnalyzer/1.0 (Educational workshop project; Contact: workshop@example.com)"
 }
 
-# Simple in-memory cache for QID labels
-_label_cache: Dict[str, str] = {}
+# Simple in-memory cache for QID labels with TTL + LRU eviction
+_LABEL_CACHE_TTL = 3600  # seconds
+_LABEL_CACHE_MAX = 5000
+_label_cache: "OrderedDict[str, Tuple[str, float]]" = OrderedDict()
+_label_cache_lock = threading.Lock()
 
 # Rate limiting disabled - let API handle its own throttling
 # Set to 0 for real-time speed, increase if you get rate limited
@@ -70,6 +75,29 @@ def retry_on_failure(max_retries: int = 3, base_delay: float = 1.0):
             raise last_exception
         return wrapper
     return decorator
+
+
+def _cache_get(cache_key: str) -> Optional[str]:
+    now = time.time()
+    with _label_cache_lock:
+        entry = _label_cache.get(cache_key)
+        if not entry:
+            return None
+        value, timestamp = entry
+        if now - timestamp > _LABEL_CACHE_TTL:
+            _label_cache.pop(cache_key, None)
+            return None
+        _label_cache.move_to_end(cache_key)
+        return value
+
+
+def _cache_set(cache_key: str, value: str) -> None:
+    now = time.time()
+    with _label_cache_lock:
+        _label_cache[cache_key] = (value, now)
+        _label_cache.move_to_end(cache_key)
+        while len(_label_cache) > _LABEL_CACHE_MAX:
+            _label_cache.popitem(last=False)
 
 
 def validate_category_exists(category_name: str) -> Tuple[bool, Optional[str]]:
@@ -277,6 +305,84 @@ def check_depicts(file_title: str) -> Tuple[bool, List[str]]:
 
 
 @retry_on_failure(max_retries=2, base_delay=0.5)
+def check_depicts_batch(file_titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
+    """
+    Check multiple Commons files for depicts (P180) statements in batches.
+
+    Args:
+        file_titles: List of file titles (e.g., ['File:Example.jpg', ...])
+
+    Returns:
+        Dict mapping file title to (has_depicts, qid_list)
+    """
+    results: Dict[str, Tuple[bool, List[str]]] = {title: (False, []) for title in file_titles}
+    if not file_titles:
+        return results
+
+    params = {
+        "action": "query",
+        "titles": "|".join(file_titles),
+        "format": "json"
+    }
+
+    _rate_limit()
+    response = requests.get(COMMONS_API, params=params, headers=HEADERS, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+
+    pages = data.get("query", {}).get("pages", {})
+    if not pages:
+        return results
+
+    media_ids: List[str] = []
+    media_to_title: Dict[str, str] = {}
+
+    for page_id, page in pages.items():
+        title = page.get("title")
+        if not title or page_id == "-1":
+            continue
+        media_id = f"M{page_id}"
+        media_ids.append(media_id)
+        media_to_title[media_id] = title
+
+    if not media_ids:
+        return results
+
+    sdc_params = {
+        "action": "wbgetentities",
+        "ids": "|".join(media_ids),
+        "format": "json"
+    }
+
+    _rate_limit()
+    sdc_response = requests.get(COMMONS_API, params=sdc_params, headers=HEADERS, timeout=30)
+    sdc_response.raise_for_status()
+    sdc_data = sdc_response.json()
+
+    entities = sdc_data.get("entities", {})
+    for media_id, entity in entities.items():
+        title = media_to_title.get(media_id)
+        if not title:
+            continue
+
+        statements = entity.get("statements", {})
+        p180_claims = statements.get("P180", [])
+
+        qids: List[str] = []
+        for claim in p180_claims:
+            mainsnak = claim.get("mainsnak", {})
+            datavalue = mainsnak.get("datavalue", {})
+            if datavalue.get("type") == "wikibase-entityid":
+                qid = datavalue.get("value", {}).get("id")
+                if qid:
+                    qids.append(qid)
+
+        results[title] = (len(qids) > 0, qids)
+
+    return results
+
+
+@retry_on_failure(max_retries=2, base_delay=0.5)
 def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
     """
     Resolve Wikidata QIDs to labels in specified language.
@@ -299,8 +405,9 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
     # Check cache first (cache key includes language)
     for qid in qids:
         cache_key = f"{qid}:{language}"
-        if cache_key in _label_cache:
-            result[qid] = _label_cache[cache_key]
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            result[qid] = cached
         else:
             qids_to_fetch.append(qid)
 
@@ -329,7 +436,7 @@ def resolve_labels(qids: List[str], language: str = "en") -> Dict[str, str]:
             # Try requested language, fallback to English, then QID
             label = labels.get(language, {}).get("value") or labels.get("en", {}).get("value", qid)
             result[qid] = label
-            _label_cache[f"{qid}:{language}"] = label  # Cache with language
+            _cache_set(f"{qid}:{language}", label)
 
     return result
 
