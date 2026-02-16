@@ -906,6 +906,13 @@ a:visited {
     flex-direction: column;
     justify-content: center;
     min-height: 120px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .stat-icon {
@@ -2330,9 +2337,11 @@ a:visited {
 
     .chart-container {
         width: 100%;
-        max-width: 340px;
-        height: 340px;
+        max-width: 100%;
+        height: auto;
+        min-height: 280px;
         margin: 0 auto;
+        padding: var(--space-md);
     }
 
     .tabs {
