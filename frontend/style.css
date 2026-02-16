@@ -884,23 +884,28 @@ a:visited {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: var(--space-xl);
-    align-items: center;
+    align-items: start;
 }
 
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: var(--space-md);
+    grid-auto-rows: 1fr;
 }
 
 .stat-card {
     background: var(--color-surface);
     border: var(--border-width) solid var(--color-border-light);
-    border-radius: var(--border-radius);
+    border-radius: 6px;
     padding: var(--space-lg);
     text-align: center;
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 120px;
 }
 
 .stat-icon {
@@ -1694,12 +1699,13 @@ a:visited {
 
 /* ============ Chart Visualization ============ */
 .chart-container {
-    padding: var(--space-lg);
+    padding: var(--space-md);
     background: var(--color-surface);
-    border-radius: 8px;
+    border-radius: 6px;
     border: var(--border-width) solid var(--color-border-light);
-    width: 280px;
-    height: 280px;
+    width: 300px;
+    height: 100%;
+    min-height: 300px;
     display: flex;
     align-items: center;
     justify-content: center;
