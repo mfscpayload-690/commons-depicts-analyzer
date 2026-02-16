@@ -1302,6 +1302,58 @@ a:visited {
     transform: scaleX(1);
 }
 
+/* History Skeletons */
+.history-skeleton {
+    cursor: default;
+    border-color: transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.history-skeleton::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.0), rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.0));
+    animation: shimmer 1.2s infinite;
+}
+
+.history-skeleton-line,
+.history-skeleton-bar,
+.history-skeleton-chip {
+    background: #e3e7ee;
+    border-radius: 6px;
+    height: 12px;
+    margin-bottom: var(--space-sm);
+}
+
+.history-skeleton-bar {
+    height: 8px;
+    width: 100%;
+}
+
+.history-skeleton-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.history-skeleton-chip {
+    height: 28px;
+    flex: 1;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+[data-theme="dark"] .history-skeleton-line,
+[data-theme="dark"] .history-skeleton-bar,
+[data-theme="dark"] .history-skeleton-chip {
+    background: #2a3036;
+}
+
 .history-card-header {
     display: flex;
     justify-content: space-between;
