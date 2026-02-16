@@ -520,6 +520,7 @@ a:visited {
     padding: 0.7rem var(--space-md);
     cursor: pointer;
     background: var(--color-surface);
+    color: var(--color-text);
     border-bottom: none;
     border: none;
     outline: none;
@@ -527,6 +528,8 @@ a:visited {
     appearance: none;
     -webkit-appearance: none;
     font-size: var(--font-size-base);
+    width: 100%;
+    text-align: left;
     transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 
@@ -567,6 +570,11 @@ a:visited {
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 999px;
     padding: 0.1rem 0.4rem;
+}
+
+.suggestion-text {
+    color: var(--color-text);
+    flex: 1;
 }
 
 /* Search History Chips */
@@ -673,31 +681,45 @@ a:visited {
 [data-theme="dark"] .suggestions {
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55);
     border-color: rgba(255, 255, 255, 0.08);
+    background: #1a1d21;
+}
+
+[data-theme="dark"] .suggestion-item {
+    background: #1a1d21;
+    color: var(--color-text);
 }
 
 [data-theme="dark"] .suggestion-item:hover,
 [data-theme="dark"] .suggestion-item.active {
-    background: #1f2b3a;
+    background: #242830;
+    color: #ffffff;
 }
 
 [data-theme="dark"] .suggestions-header {
     background: linear-gradient(90deg, #14181d 0%, #101318 100%);
     border-bottom-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
 }
 
 [data-theme="dark"] .suggestions-hint,
 [data-theme="dark"] .suggestions-empty {
     border-top-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
 }
 
 [data-theme="dark"] .suggestion-icon {
-    background: #1b2128;
+    background: #242830;
     color: #9bbcff;
 }
 
 [data-theme="dark"] .suggestion-prefix {
-    background: #1b2026;
+    background: #242830;
     border-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .suggestion-text {
+    color: var(--color-text);
 }
 
 [data-theme="dark"] .search-history {
