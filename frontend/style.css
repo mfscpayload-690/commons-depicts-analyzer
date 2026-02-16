@@ -113,6 +113,11 @@
 [data-theme="dark"] .stat-card {
     background: var(--color-surface);
     border-color: var(--color-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .stat-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="dark"] .modal-content {
