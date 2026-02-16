@@ -41,6 +41,7 @@ const SEARCH_HISTORY_KEY = 'categorySearchHistory';
 const SEARCH_HISTORY_LIMIT = 8;
 const SUGGESTION_LIMIT = 8;
 const SUGGESTION_DEBOUNCE_MS = 250;
+const PAGE_SIZE = 50;
 
 let suggestionItems = [];
 let activeSuggestionIndex = -1;
@@ -49,6 +50,8 @@ let activeJobId = null;
 let coverageChart = null; // Chart.js instance
 let currentLanguage = 'en'; // Default language
 let currentCategory = ''; // Track current analyzed category
+let pagedFiles = { with: [], without: [] };
+let currentPages = { with: 1, without: 1 };
 
 // ============ API Functions ============
 
@@ -213,28 +216,54 @@ function getThumbnailUrl(fileTitle, width = 60) {
  * @param {Array} files - Array of file objects
  */
 function populateTables(files) {
-    const withDepicts = files.filter(f => f.has_depicts);
-    const withoutDepicts = files.filter(f => !f.has_depicts);
+    pagedFiles.with = files.filter(f => f.has_depicts);
+    pagedFiles.without = files.filter(f => !f.has_depicts);
+
+    currentPages.with = 1;
+    currentPages.without = 1;
 
     // Update counts
-    elements.countWith.textContent = withDepicts.length;
-    elements.countWithout.textContent = withoutDepicts.length;
+    elements.countWith.textContent = pagedFiles.with.length;
+    elements.countWithout.textContent = pagedFiles.without.length;
 
-    // Populate "without depicts" table
-    const tbodyWithout = elements.tableWithoutDepicts.querySelector('tbody');
-    tbodyWithout.innerHTML = '';
+    renderTablePage('without');
+    renderTablePage('with');
 
-    if (withoutDepicts.length === 0) {
-        elements.tableWithoutDepicts.classList.add('hidden');
-        elements.emptyWithout.classList.remove('hidden');
-    } else {
-        elements.tableWithoutDepicts.classList.remove('hidden');
-        elements.emptyWithout.classList.add('hidden');
+    elements.resultsSection.classList.remove('hidden');
+}
 
-        withoutDepicts.forEach((file, index) => {
-            const row = document.createElement('tr');
+function renderTablePage(type) {
+    const files = type === 'with' ? pagedFiles.with : pagedFiles.without;
+    const table = type === 'with' ? elements.tableWithDepicts : elements.tableWithoutDepicts;
+    const empty = type === 'with' ? elements.emptyWith : elements.emptyWithout;
+    const tbody = table.querySelector('tbody');
+
+    tbody.innerHTML = '';
+
+    if (files.length === 0) {
+        table.classList.add('hidden');
+        empty.classList.remove('hidden');
+        updatePaginationControls(type, 0, 1);
+        return;
+    }
+
+    table.classList.remove('hidden');
+    empty.classList.add('hidden');
+
+    const totalPages = Math.max(1, Math.ceil(files.length / PAGE_SIZE));
+    const page = Math.min(currentPages[type], totalPages);
+    currentPages[type] = page;
+
+    const start = (page - 1) * PAGE_SIZE;
+    const slice = files.slice(start, start + PAGE_SIZE);
+
+    slice.forEach((file, index) => {
+        const row = document.createElement('tr');
+        const rowNumber = start + index + 1;
+
+        if (type === 'without') {
             row.innerHTML = `
-                <td>${index + 1}</td>
+                <td>${rowNumber}</td>
                 <td class="thumbnail-cell">
                     <img src="${getThumbnailUrl(file.file_name)}" 
                          alt="${escapeHtml(file.file_name.replace('File:', ''))}"
@@ -256,25 +285,9 @@ function populateTables(files) {
                     </a>
                 </td>
             `;
-            tbodyWithout.appendChild(row);
-        });
-    }
-
-    // Populate "with depicts" table
-    const tbodyWith = elements.tableWithDepicts.querySelector('tbody');
-    tbodyWith.innerHTML = '';
-
-    if (withDepicts.length === 0) {
-        elements.tableWithDepicts.classList.add('hidden');
-        elements.emptyWith.classList.remove('hidden');
-    } else {
-        elements.tableWithDepicts.classList.remove('hidden');
-        elements.emptyWith.classList.add('hidden');
-
-        withDepicts.forEach((file, index) => {
-            const row = document.createElement('tr');
+        } else {
             row.innerHTML = `
-                <td>${index + 1}</td>
+                <td>${rowNumber}</td>
                 <td class="thumbnail-cell">
                     <img src="${getThumbnailUrl(file.file_name)}" 
                          alt="${escapeHtml(file.file_name.replace('File:', ''))}"
@@ -291,11 +304,66 @@ function populateTables(files) {
                 </td>
                 <td class="depicts-cell">${escapeHtml(file.depicts || '')}</td>
             `;
-            tbodyWith.appendChild(row);
+        }
+
+        tbody.appendChild(row);
+    });
+
+    updatePaginationControls(type, files.length, totalPages);
+}
+
+function updatePaginationControls(type, totalItems, totalPages) {
+    const pagination = document.getElementById(`pagination-${type}`);
+    const prevBtn = document.getElementById(`page-prev-${type}`);
+    const nextBtn = document.getElementById(`page-next-${type}`);
+    const info = document.getElementById(`page-info-${type}`);
+
+    if (!pagination || !prevBtn || !nextBtn || !info) return;
+
+    if (totalItems <= PAGE_SIZE) {
+        pagination.classList.add('hidden');
+        return;
+    }
+
+    pagination.classList.remove('hidden');
+    info.textContent = `Page ${currentPages[type]} of ${totalPages}`;
+    prevBtn.disabled = currentPages[type] <= 1;
+    nextBtn.disabled = currentPages[type] >= totalPages;
+}
+
+function initPaginationControls() {
+    const prevWithout = document.getElementById('page-prev-without');
+    const nextWithout = document.getElementById('page-next-without');
+    const prevWith = document.getElementById('page-prev-with');
+    const nextWith = document.getElementById('page-next-with');
+
+    if (prevWithout) {
+        prevWithout.addEventListener('click', () => {
+            currentPages.without = Math.max(1, currentPages.without - 1);
+            renderTablePage('without');
         });
     }
 
-    elements.resultsSection.classList.remove('hidden');
+    if (nextWithout) {
+        nextWithout.addEventListener('click', () => {
+            currentPages.without += 1;
+            renderTablePage('without');
+        });
+    }
+
+    if (prevWith) {
+        prevWith.addEventListener('click', () => {
+            currentPages.with = Math.max(1, currentPages.with - 1);
+            renderTablePage('with');
+        });
+    }
+
+    if (nextWith) {
+        nextWith.addEventListener('click', () => {
+            currentPages.with += 1;
+            renderTablePage('with');
+        });
+    }
 }
 
 /**
@@ -852,6 +920,7 @@ async function handleSubmit(event) {
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
+    initPaginationControls();
     elements.form.addEventListener('submit', handleSubmit);
 
     // Focus input on load

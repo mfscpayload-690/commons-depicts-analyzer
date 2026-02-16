@@ -7,24 +7,57 @@ Uses a single table design for hackathon simplicity.
 
 import sqlite3
 import os
+import queue
+import threading
+from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "depicts.db")
 
+# Simple connection pool for reuse across calls
+_POOL_SIZE = 5
+_pool = queue.LifoQueue(maxsize=_POOL_SIZE)
+_pool_lock = threading.Lock()
+_pool_created = 0
 
-def _get_connection() -> sqlite3.Connection:
-    """Get a database connection with row factory."""
+
+def _create_connection() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
 
+@contextmanager
+def _get_connection() -> sqlite3.Connection:
+    """Acquire a pooled database connection."""
+    global _pool_created
+    conn = None
+    try:
+        conn = _pool.get_nowait()
+    except queue.Empty:
+        with _pool_lock:
+            if _pool_created < _POOL_SIZE:
+                conn = _create_connection()
+                _pool_created += 1
+            else:
+                conn = _pool.get()
+
+    try:
+        yield conn
+    finally:
+        if conn is None:
+            return
+        try:
+            _pool.put_nowait(conn)
+        except queue.Full:
+            conn.close()
+
+
 def init_db() -> None:
     """Initialize SQLite database with required schema."""
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -52,8 +85,6 @@ def init_db() -> None:
         """)
 
         conn.commit()
-    finally:
-        conn.close()
 
 
 def insert_file(file_name: str, category: str, depicts: Optional[str], has_depicts: bool) -> None:
@@ -66,8 +97,7 @@ def insert_file(file_name: str, category: str, depicts: Optional[str], has_depic
         depicts: Comma-separated depicts labels (or None)
         has_depicts: Boolean flag
     """
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -81,14 +111,11 @@ def insert_file(file_name: str, category: str, depicts: Optional[str], has_depic
         """, (file_name, category, depicts, 1 if has_depicts else 0))
 
         conn.commit()
-    finally:
-        conn.close()
 
 
 def get_files_by_category(category: str) -> List[Dict[str, Any]]:
     """Get all files for a category."""
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -100,14 +127,11 @@ def get_files_by_category(category: str) -> List[Dict[str, Any]]:
 
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
-    finally:
-        conn.close()
 
 
 def get_statistics(category: str) -> Dict[str, int]:
     """Get analysis statistics for a category."""
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -129,8 +153,6 @@ def get_statistics(category: str) -> Dict[str, int]:
             }
 
         return {"total": 0, "with_depicts": 0, "without_depicts": 0}
-    finally:
-        conn.close()
 
 
 def get_history_stats() -> List[Dict[str, Any]]:
@@ -141,8 +163,7 @@ def get_history_stats() -> List[Dict[str, Any]]:
     Returns:
         List of category statistics including last analyzed timestamp
     """
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -173,8 +194,6 @@ def get_history_stats() -> List[Dict[str, Any]]:
             })
 
         return history
-    finally:
-        conn.close()
 
 
 def get_all_categories() -> List[Dict[str, Any]]:
@@ -182,8 +201,7 @@ def get_all_categories() -> List[Dict[str, Any]]:
     Get a list of all analyzed categories with file counts and coverage.
     Used by the /api/history endpoint.
     """
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -211,8 +229,6 @@ def get_all_categories() -> List[Dict[str, Any]]:
                 "last_analyzed": row["last_analyzed"]
             })
         return categories
-    finally:
-        conn.close()
 
 
 def verify_category_saved(category: str) -> Dict[str, Any]:
@@ -223,8 +239,7 @@ def verify_category_saved(category: str) -> Dict[str, Any]:
     if not category.startswith("Category:"):
         category = f"Category:{category}"
 
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*) as cnt FROM files WHERE category = ?", (category,))
@@ -245,18 +260,13 @@ def verify_category_saved(category: str) -> Dict[str, Any]:
             "record_count": count,
             "sample_records": samples
         }
-    finally:
-        conn.close()
 
 
 def clear_category(category: str) -> None:
     """Clear all records for a category."""
-    conn = _get_connection()
-    try:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("DELETE FROM files WHERE category = ?", (category,))
 
         conn.commit()
-    finally:
-        conn.close()
