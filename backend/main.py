@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 from flask import Flask, request, jsonify, send_from_directory, redirect, session
 from flask_cors import CORS
@@ -25,7 +26,7 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from api import (fetch_category_files, check_depicts, resolve_labels,
+from api import (fetch_category_files, check_depicts, check_depicts_batch, resolve_labels,
                  fetch_category_suggestions, fetch_file_info, suggest_depicts)
 from database import (init_db, insert_file, get_files_by_category,
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
@@ -136,35 +137,56 @@ def analyze_category(category_name: str, progress_callback=None, progress_hook=N
             "total": total
         })
 
-    for i, file_title in enumerate(files):
-        if progress_callback:
-            progress_callback(f"Checking file {i + 1}/{total}: {file_title}")
+    batch_size = 50
+    batches = [files[i:i + batch_size] for i in range(0, total, batch_size)]
+    max_workers = min(6, max(1, len(batches)))
+    processed = 0
 
-        if progress_hook:
-            progress_hook({
-                "phase": "checking",
-                "message": "Checking depicts statements",
-                "processed": i + 1,
-                "total": total
-            })
+    def process_batch(batch_files: list) -> dict:
+        return check_depicts_batch(batch_files)
 
-        try:
-            has_depicts, qids = check_depicts(file_title)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {executor.submit(process_batch, batch): batch for batch in batches}
 
-            # Resolve labels if there are QIDs (with language parameter)
-            depicts_str = None
-            if qids:
-                labels = resolve_labels(qids, language)  # Pass language here
-                label_list = [labels.get(qid, qid) for qid in qids]
-                depicts_str = ", ".join(label_list)
+        for future in as_completed(future_map):
+            batch = future_map[future]
+            try:
+                batch_results = future.result()
+            except Exception as e:
+                print(f"Error processing batch: {e}", file=sys.stderr)
+                batch_results = {title: (False, []) for title in batch}
 
-            # Store in database
-            insert_file(file_title, category_name, depicts_str, has_depicts)
+            batch_qids = set()
+            for title in batch:
+                _, qids = batch_results.get(title, (False, []))
+                batch_qids.update(qids)
 
-        except Exception as e:
-            # Log error but continue with other files
-            print(f"Error processing {file_title}: {e}", file=sys.stderr)
-            insert_file(file_title, category_name, None, False)
+            labels = resolve_labels(list(batch_qids), language) if batch_qids else {}
+
+            for file_title in batch:
+                try:
+                    has_depicts, qids = batch_results.get(file_title, (False, []))
+                    depicts_str = None
+                    if qids:
+                        label_list = [labels.get(qid, qid) for qid in qids]
+                        depicts_str = ", ".join(label_list)
+
+                    insert_file(file_title, category_name, depicts_str, has_depicts)
+                except Exception as e:
+                    print(f"Error processing {file_title}: {e}", file=sys.stderr)
+                    insert_file(file_title, category_name, None, False)
+
+                processed += 1
+                if progress_callback:
+                    progress_callback(f"Checking file {processed}/{total}: {file_title}")
+
+                if progress_hook:
+                    progress_hook({
+                        "phase": "checking",
+                        "message": "Checking depicts statements",
+                        "processed": processed,
+                        "total": total
+                    })
 
     # Step 3: Get results
     if progress_hook:
