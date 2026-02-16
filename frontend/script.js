@@ -52,6 +52,13 @@ let currentLanguage = 'en'; // Default language
 let currentCategory = ''; // Track current analyzed category
 let pagedFiles = { with: [], without: [] };
 let currentPages = { with: 1, without: 1 };
+let suggestionAbortController = null;
+let progressStats = {
+    startTime: 0,
+    lastTime: 0,
+    lastProcessed: 0,
+    emaRate: null
+};
 
 // ============ API Functions ============
 
@@ -133,8 +140,8 @@ async function fetchResults(category) {
  * @param {string} query - Partial category name
  * @returns {Promise<Array>} Suggestions
  */
-async function fetchSuggestions(query) {
-    const response = await fetch(`/api/suggest?query=${encodeURIComponent(query)}`);
+async function fetchSuggestions(query, options = {}) {
+    const response = await fetch(`/api/suggest?query=${encodeURIComponent(query)}`, options);
     const data = await response.json();
 
     if (!response.ok) {
@@ -279,10 +286,10 @@ function renderTablePage(type) {
                     </a>
                 </td>
                 <td>
-                    <a href="${getCommonsUrl(file.file_name)}#P180" target="_blank" rel="noopener" 
-                       title="Add depicts on Commons">
+                    <button type="button" class="btn btn-secondary" onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                       title="Add depicts in app">
                         + Add depicts
-                    </a>
+                    </button>
                 </td>
             `;
         } else {
@@ -544,6 +551,27 @@ function showProgress(percentValue, labelText, detailText) {
     progress.classList.remove('hidden');
 }
 
+function resetProgressStats() {
+    progressStats = {
+        startTime: 0,
+        lastTime: 0,
+        lastProcessed: 0,
+        emaRate: null
+    };
+}
+
+function formatDuration(seconds) {
+    if (!isFinite(seconds) || seconds <= 0) return '';
+    const total = Math.round(seconds);
+    const hrs = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    if (hrs > 0) {
+        return `${hrs}h ${String(mins).padStart(2, '0')}m`;
+    }
+    return `${mins}m ${String(secs).padStart(2, '0')}s`;
+}
+
 function completeProgress() {
     showProgress(100, 'Completed', 'Done — results are ready');
     setTimeout(() => {
@@ -574,7 +602,37 @@ function updateProgressFromStatus(status) {
     let detail = status.message || '';
 
     if (status.total) {
-        detail = `Processed ${status.processed || 0} of ${status.total} files`;
+        const processed = status.processed || 0;
+        const total = status.total;
+        const now = Date.now();
+
+        if (!progressStats.startTime) {
+            progressStats.startTime = now;
+            progressStats.lastTime = now;
+            progressStats.lastProcessed = processed;
+        } else if (processed > progressStats.lastProcessed) {
+            const deltaTime = (now - progressStats.lastTime) / 1000;
+            const deltaProcessed = processed - progressStats.lastProcessed;
+            if (deltaTime > 0 && deltaProcessed > 0) {
+                const rate = deltaProcessed / deltaTime;
+                progressStats.emaRate = progressStats.emaRate == null
+                    ? rate
+                    : (0.3 * rate + 0.7 * progressStats.emaRate);
+            }
+            progressStats.lastTime = now;
+            progressStats.lastProcessed = processed;
+        }
+
+        let etaText = '';
+        if (progressStats.emaRate && progressStats.emaRate > 0) {
+            const remaining = Math.max(0, total - processed);
+            etaText = formatDuration(remaining / progressStats.emaRate);
+        }
+
+        detail = `Processed ${processed} of ${total} files`;
+        if (etaText) {
+            detail += ` • ETA ${etaText}`;
+        }
     }
 
     showProgress(status.percent || 0, label, detail);
@@ -796,15 +854,24 @@ function initSuggestions() {
         const query = normalizeCategoryInput(elements.categoryInput.value);
         if (query.length < 2) {
             hideSuggestions();
+            if (suggestionAbortController) {
+                suggestionAbortController.abort();
+                suggestionAbortController = null;
+            }
             return;
         }
 
         clearTimeout(suggestionTimeout);
         suggestionTimeout = setTimeout(async () => {
             try {
-                const items = await fetchSuggestions(query);
+                if (suggestionAbortController) {
+                    suggestionAbortController.abort();
+                }
+                suggestionAbortController = new AbortController();
+                const items = await fetchSuggestions(query, { signal: suggestionAbortController.signal });
                 renderSuggestions(items);
             } catch (error) {
+                if (error.name === 'AbortError') return;
                 hideSuggestions();
             }
         }, SUGGESTION_DEBOUNCE_MS);
@@ -868,6 +935,7 @@ async function cancelAnalysis() {
         await fetch(`/api/cancel/${encodeURIComponent(activeJobId)}`, { method: 'POST' });
     } catch (_) { /* ignore */ }
     activeJobId = null;
+    resetProgressStats();
     hideProgress();
     setLoading(false);
     showStatus('Analysis stopped.', 'error');
@@ -883,10 +951,16 @@ async function handleSubmit(event) {
         return;
     }
 
+    const normalized = normalizeCategoryInput(category);
+    const url = new URL(window.location.href);
+    url.searchParams.set('category', normalized);
+    window.history.replaceState({}, '', url);
+
     currentCategory = category; // Track for exports
     setLoading(true);
     hideStatus();
     showProgress(4, `Analyzing "${category}"`, 'Preparing analysis');
+    resetProgressStats();
 
     // Hide previous results
     elements.statisticsSection.classList.add('hidden');
@@ -912,6 +986,7 @@ async function handleSubmit(event) {
         showToast(`Error: ${error.message}`, 'error');
         hideProgress();
     } finally {
+        resetProgressStats();
         setLoading(false);
     }
 }
@@ -946,7 +1021,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize appearance panel
     initAppearancePanel();
+
+    applyCategoryFromUrl();
 });
+
+function applyCategoryFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const categoryParam = params.get('category');
+    if (!categoryParam) return;
+    const normalized = normalizeCategoryInput(categoryParam);
+    if (!normalized) return;
+    elements.categoryInput.value = normalized;
+    handleSubmit({ preventDefault() {} });
+}
 
 // ============ Appearance Panel ============
 
@@ -1357,6 +1444,12 @@ async function loadHistory() {
         refreshBtn.disabled = true;
     }
 
+    if (grid && emptyState) {
+        emptyState.classList.add('hidden');
+        grid.classList.remove('hidden');
+        renderHistorySkeletons(grid, 6);
+    }
+
     try {
         const data = await fetchHistory();
         historyData = data.categories || [];
@@ -1382,6 +1475,25 @@ async function loadHistory() {
             refreshBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh';
             refreshBtn.disabled = false;
         }
+    }
+}
+
+function renderHistorySkeletons(container, count) {
+    container.innerHTML = '';
+    for (let i = 0; i < count; i += 1) {
+        const card = document.createElement('div');
+        card.className = 'history-card history-skeleton';
+        card.innerHTML = `
+            <div class="history-skeleton-line" style="width: 70%;"></div>
+            <div class="history-skeleton-bar"></div>
+            <div class="history-skeleton-line" style="width: 55%;"></div>
+            <div class="history-skeleton-line" style="width: 45%;"></div>
+            <div class="history-skeleton-actions">
+                <span class="history-skeleton-chip"></span>
+                <span class="history-skeleton-chip"></span>
+            </div>
+        `;
+        container.appendChild(card);
     }
 }
 
@@ -1526,7 +1638,18 @@ async function showFilePreview(fileTitle) {
     // Set action links
     const commonsUrl = getCommonsUrl(fileTitle);
     viewCommonsBtn.href = commonsUrl;
-    addDepictsBtn.href = commonsUrl + '#P180';
+    if (addDepictsBtn) {
+        addDepictsBtn.onclick = () => {
+            if (!_isLoggedIn) {
+                showToast('Please log in with Wikimedia first', 'warning');
+                return;
+            }
+            const suggestsSection = document.getElementById('suggests-section');
+            if (suggestsSection) {
+                suggestsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        };
+    }
 
     // Show modal
     modal.classList.remove('hidden');
