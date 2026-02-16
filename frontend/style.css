@@ -2355,11 +2355,11 @@ a:visited {
 
     .header {
         flex-direction: column;
-        align-items: center;
+        align-items: flex-start;
         gap: var(--space-sm);
     }
 
-    .appearance-btn {
+    .header-actions {
         align-self: flex-end;
     }
 
