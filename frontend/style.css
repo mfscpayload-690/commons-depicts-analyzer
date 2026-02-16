@@ -884,7 +884,7 @@ a:visited {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: var(--space-xl);
-    align-items: start;
+    align-items: center;
 }
 
 .stats-grid {
@@ -1704,6 +1704,7 @@ a:visited {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .chart-container canvas {
@@ -1714,6 +1715,7 @@ a:visited {
 [data-theme="dark"] .chart-container {
     background: #1e2126;
     border-color: var(--color-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* ============ Export Buttons ============ */
@@ -2311,8 +2313,20 @@ a:visited {
         flex-direction: column;
     }
 
+    .stats-layout {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .chart-container {
+        width: 100%;
+        max-width: 340px;
+        height: 340px;
+        margin: 0 auto;
     }
 
     .tabs {
@@ -2342,9 +2356,5 @@ a:visited {
 
     .btn-export {
         width: 100%;
-    }
-
-    .chart-container {
-        padding: var(--space-md);
     }
 }
