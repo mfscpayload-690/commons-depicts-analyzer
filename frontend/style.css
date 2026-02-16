@@ -963,6 +963,23 @@ a:visited {
     margin-bottom: var(--space-md);
 }
 
+/* Pagination */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.page-info {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    min-width: 110px;
+    text-align: center;
+}
+
 .tab-btn {
     padding: var(--space-sm) var(--space-lg);
     font-size: var(--font-size-base);
