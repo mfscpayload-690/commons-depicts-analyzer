@@ -1096,6 +1096,184 @@ a:visited {
     margin: var(--space-xs) 0;
 }
 
+.footer-links {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-md);
+}
+
+.footer-link {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    transition: color 0.15s ease;
+    cursor: pointer;
+}
+
+.footer-link:hover {
+    color: var(--color-primary);
+}
+
+/* ============ Info Modal ============ */
+.info-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg);
+}
+
+.info-modal-content {
+    position: relative;
+    z-index: 1;
+    background: var(--color-surface);
+    border-radius: 8px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.25s ease;
+}
+
+.info-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--color-border-light);
+    flex-shrink: 0;
+}
+
+.info-modal-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.info-modal-close {
+    background: none;
+    border: 1px solid var(--color-border-light);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.info-modal-close:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+.info-modal-body {
+    padding: var(--space-lg);
+    overflow-y: auto;
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+}
+
+.info-modal-body h4 {
+    margin: var(--space-lg) 0 var(--space-sm);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.info-modal-body h4:first-child {
+    margin-top: 0;
+}
+
+.info-modal-body p {
+    margin: 0 0 var(--space-md);
+    color: var(--color-text-muted);
+}
+
+.info-modal-body a {
+    color: var(--color-link);
+}
+
+.info-modal-body a:hover {
+    color: var(--color-link-hover);
+}
+
+.info-modal-body ul {
+    margin: 0 0 var(--space-md);
+    padding-left: var(--space-lg);
+    color: var(--color-text-muted);
+}
+
+.info-modal-body li {
+    margin-bottom: var(--space-xs);
+}
+
+.info-modal-body .faq-q {
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: var(--space-xs);
+}
+
+.info-modal-body .faq-a {
+    margin: 0 0 var(--space-lg);
+    color: var(--color-text-muted);
+}
+
+.info-modal-body .contact-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    margin-bottom: var(--space-sm);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: border-color 0.15s ease;
+}
+
+.info-modal-body .contact-item:hover {
+    border-color: var(--color-primary);
+}
+
+.info-modal-body .contact-item i {
+    color: var(--color-primary);
+    font-size: var(--font-size-lg);
+    margin-top: 2px;
+}
+
+.info-modal-body .contact-label {
+    font-weight: 500;
+    color: var(--color-text);
+    display: block;
+}
+
+.info-modal-body .contact-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .info-modal-content {
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .info-modal-body .contact-item {
+    background: rgba(255, 255, 255, 0.03);
+}
+
 /* ============ History Dashboard ============ */
 .history-section {
     margin-top: var(--space-xl);
@@ -2674,5 +2852,21 @@ a:visited {
     .modal-content {
         margin: var(--space-md);
         padding: var(--space-lg);
+    }
+
+    /* --- Info Modal --- */
+    .info-modal {
+        padding: 0;
+    }
+
+    .info-modal-content {
+        max-height: 100vh;
+        max-width: 100%;
+        border-radius: 0;
+        height: 100%;
+    }
+
+    .info-modal-body {
+        padding: var(--space-md);
     }
 }

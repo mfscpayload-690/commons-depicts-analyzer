@@ -338,6 +338,11 @@
 
         <!-- Footer -->
         <footer class="footer">
+            <div class="footer-links">
+                <a href="#" class="footer-link" onclick="showInfoModal('about'); return false;">About</a>
+                <a href="#" class="footer-link" onclick="showInfoModal('faq'); return false;">FAQ</a>
+                <a href="#" class="footer-link" onclick="showInfoModal('contact'); return false;">Contact</a>
+            </div>
             <p>
                 Built for the <a
                     href="https://meta.wikimedia.org/wiki/Event:Wikimedia_Technical_Workshop_at_THARANG_2K26"
@@ -423,6 +428,20 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Info Modal (About / FAQ / Contact) -->
+    <div id="info-modal" class="info-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="info-modal-content">
+            <div class="info-modal-header">
+                <h3 id="info-modal-title"></h3>
+                <button class="info-modal-close" id="info-modal-close" title="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="info-modal-body" id="info-modal-body"></div>
         </div>
     </div>
 

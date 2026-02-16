@@ -1937,3 +1937,131 @@ window.reanalyzeCategory = reanalyzeCategory;
 window.showFilePreview = showFilePreview;
 window.copySuggestQid = copySuggestQid;
 window.addDepictsFromSuggest = addDepictsFromSuggest;
+
+// ============ Info Modal (About / FAQ / Contact) ============
+
+const INFO_CONTENT = {
+    about: {
+        title: 'About',
+        body: `
+            <h4>Commons Depicts Analyzer</h4>
+            <p>This tool helps Wikimedia contributors analyze and improve
+            <a href="https://www.wikidata.org/wiki/Property:P180" target="_blank" rel="noopener">depicts (P180)</a>
+            metadata coverage on Wikimedia Commons categories.</p>
+
+            <h4>What it does</h4>
+            <ul>
+                <li>Scans all files in a Commons category</li>
+                <li>Identifies which files have depicts statements and which don't</li>
+                <li>Suggests relevant Wikidata items based on file names</li>
+                <li>Lets authenticated users add depicts statements directly</li>
+            </ul>
+
+            <h4>Built with</h4>
+            <p>Python (Flask), vanilla JavaScript, SQLite, and the MediaWiki &amp; Wikidata APIs.
+            Source code is available on
+            <a href="https://github.com/mfscpayload-690/commons-depicts-analyzer" target="_blank" rel="noopener">GitHub</a>.</p>
+        `
+    },
+    faq: {
+        title: 'FAQ',
+        body: `
+            <p class="faq-q">What is "depicts" (P180)?</p>
+            <p class="faq-a">Depicts is a Wikidata property used to describe what is shown in an image on Wikimedia Commons.
+            Adding depicts statements makes media files more discoverable and useful for structured search.</p>
+
+            <p class="faq-q">Do I need to log in?</p>
+            <p class="faq-a">Browsing and analyzing categories works without logging in.
+            You need to authenticate with your Wikimedia account to add depicts statements to files.</p>
+
+            <p class="faq-q">Is my data stored anywhere?</p>
+            <p class="faq-a">Analysis results are cached in a local SQLite database on the server.
+            No personal data is stored beyond your active session. OAuth tokens are kept only in memory during your session.</p>
+
+            <p class="faq-q">How are suggestions generated?</p>
+            <p class="faq-a">The tool analyzes file names and searches Wikidata for matching items.
+            Suggestions are not always accurate and should be reviewed before adding.</p>
+
+            <p class="faq-q">How can I contribute?</p>
+            <p class="faq-a">Contributions are welcome on
+            <a href="https://github.com/mfscpayload-690/commons-depicts-analyzer" target="_blank" rel="noopener">GitHub</a>.
+            You can report bugs, suggest features, or submit pull requests.</p>
+        `
+    },
+    contact: {
+        title: 'Contact',
+        body: `
+            <p>Have a question, found a bug, or want to suggest a feature?</p>
+
+            <a class="contact-item" href="https://github.com/mfscpayload-690/commons-depicts-analyzer/issues" target="_blank" rel="noopener">
+                <i class="fa-brands fa-github"></i>
+                <div>
+                    <span class="contact-label">GitHub Issues</span>
+                    <span class="contact-desc">Report bugs or request features</span>
+                </div>
+            </a>
+
+            <a class="contact-item" href="https://commons.wikimedia.org/wiki/Commons:Village_pump" target="_blank" rel="noopener">
+                <i class="fa-solid fa-users"></i>
+                <div>
+                    <span class="contact-label">Commons Village Pump</span>
+                    <span class="contact-desc">Discuss with the Wikimedia community</span>
+                </div>
+            </a>
+
+            <a class="contact-item" href="https://www.wikidata.org/wiki/Wikidata:Project_chat" target="_blank" rel="noopener">
+                <i class="fa-solid fa-database"></i>
+                <div>
+                    <span class="contact-label">Wikidata Project Chat</span>
+                    <span class="contact-desc">Discuss depicts and structured data</span>
+                </div>
+            </a>
+        `
+    }
+};
+
+function showInfoModal(type) {
+    const content = INFO_CONTENT[type];
+    if (!content) return;
+
+    const modal = document.getElementById('info-modal');
+    const titleEl = document.getElementById('info-modal-title');
+    const bodyEl = document.getElementById('info-modal-body');
+    const closeBtn = document.getElementById('info-modal-close');
+
+    titleEl.textContent = content.title;
+    bodyEl.innerHTML = content.body;
+
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    const close = () => closeInfoModal();
+    const onBackdrop = (e) => {
+        if (e.target.classList.contains('modal-backdrop')) close();
+    };
+    const onEscape = (e) => {
+        if (e.key === 'Escape') close();
+    };
+
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onEscape);
+
+    modal._cleanup = () => {
+        closeBtn.removeEventListener('click', close);
+        modal.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onEscape);
+    };
+}
+
+function closeInfoModal() {
+    const modal = document.getElementById('info-modal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+    if (modal._cleanup) {
+        modal._cleanup();
+        modal._cleanup = null;
+    }
+}
+
+window.showInfoModal = showInfoModal;
