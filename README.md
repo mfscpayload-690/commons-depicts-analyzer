@@ -3,14 +3,14 @@
 <div align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-2.0+-000000?style=for-the-badge&logo=flask&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-2.3+-000000?style=for-the-badge&logo=flask&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
 **Analyze Wikimedia Commons categories for [depicts (P180)](https://www.wikidata.org/wiki/Property:P180) metadata coverage.**
 
-[Overiew](#overview) • [Features](#features) • [Installation](#installation) • [Security](#security) • [API Reference](#api-reference)
+[Overview](#overview) • [Features](#features) • [Installation](#installation) • [Security](#security) • [API Reference](#api-reference)
 
 </div>
 
@@ -27,11 +27,15 @@ This application is built with a focus on **data integrity**, **user privacy**, 
 ## Features
 
 - **Categorical Analysis**: Systematically fetches and audits all files within a specified Commons category.
-- **Coverage Visualization**: Real-time statistical analysis of metadata coverage.
+- **Coverage Visualization**: Real-time statistical analysis of metadata coverage with interactive charts.
 - **OAuth 2.0 Authentication**: Secure integration with Wikimedia accounts for authenticated operations.
-- **Suggestions Engine**: Suggests relevant Wikidata items for files based on title analysis.
-- **Interactive Dashboard**: Sortable and filterable results interfaces with dark mode support.
+- **Suggestions Engine**: Suggests relevant Wikidata items for files based on title analysis and context.
+- **Interactive Dashboard**: Sortable and filterable results interfaces with pagination support.
+- **Progress Tracking**: Real-time progress monitoring with job cancellation support for long-running analyses.
+- **Export Capabilities**: Export analysis results in CSV or JSON formats for further processing.
+- **Customizable Interface**: Adjustable text size, width, and color themes (including dark mode - beta).
 - **Responsive Design**: Mobile-friendly interface optimized for various screen sizes.
+- **Batch Operations**: Add depicts statements to multiple files efficiently.
 
 ---
 
@@ -42,12 +46,14 @@ The application follows a modular architecture:
 ### Backend
 - **Core**: Python 3.8+ with Flask.
 - **Security**: Server-side session management (`Flask-Session`), CSRF protection, and strictly enforced rate limiting (`Flask-Limiter`).
-- **Database**: SQLite for lightweight, reliable data persistence.
+- **Database**: SQLite for lightweight, reliable data persistence with connection pooling for improved performance.
+- **Performance**: Multi-threaded batch processing using `ThreadPoolExecutor` for efficient parallel operations.
 - **API Integration**: Direct interaction with MediaWiki and Wikidata APIs.
 
 ### Frontend
 - **Framework**: Semantic HTML5 and CSS3 (custom design system).
 - **Interactivity**: Vanilla JavaScript (ES6+) for performant client-side logic.
+- **Visualization**: Chart.js for interactive statistical charts and graphs.
 - **Design**: Wikipedia-inspired aesthetic with high contrast and accessibility focus.
 
 ---
@@ -152,7 +158,25 @@ The backend exposes a RESTful API for automation and integration.
 | `GET`  | `/api/history`            | Lists all previously analyzed categories.            |
 | `POST` | `/api/add-depicts`        | **(Auth Required)** Adds a P180 statement to a file. |
 
-### Authentication Stats
+### Progress & Job Management
+
+| Method | Endpoint                 | Description                                      |
+| :----- | :----------------------- | :----------------------------------------------- |
+| `GET`  | `/api/progress/<job_id>` | Get progress status of a background analysis job.|
+| `POST` | `/api/cancel/<job_id>`   | Cancel a currently running analysis job.         |
+
+### Category & File Operations
+
+| Method   | Endpoint                       | Description                                         |
+| :------- | :----------------------------- | :-------------------------------------------------- |
+| `GET`    | `/api/suggest`                 | Suggest Commons categories by prefix (autocomplete).|
+| `GET`    | `/api/verify/<category>`       | Verify if a category exists on Wikimedia Commons.   |
+| `DELETE` | `/api/category/<category>`     | Delete cached analysis data for a category.         |
+| `GET`    | `/api/export/<category>`       | Export analysis results in CSV format.              |
+| `GET`    | `/api/fileinfo/<file_title>`   | Get detailed information about a specific file.     |
+| `GET`    | `/api/suggests/<file_title>`   | Get Wikidata item suggestions for a specific file.  |
+
+### Authentication Endpoints
 
 | Method | Endpoint       | Description                                            |
 | :----- | :------------- | :----------------------------------------------------- |
