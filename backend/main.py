@@ -26,7 +26,7 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from api import (fetch_category_files, check_depicts, check_depicts_batch, resolve_labels,
+from api import (fetch_category_files, check_depicts_batch, resolve_labels,
                  fetch_category_suggestions, fetch_file_info, suggest_depicts)
 from database import (init_db, insert_file, get_files_by_category,
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
