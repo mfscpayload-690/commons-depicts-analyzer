@@ -24,34 +24,36 @@ def _get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     """Initialize SQLite database with required schema."""
     conn = _get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            depicts TEXT,
-            has_depicts INTEGER NOT NULL,
-            analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(file_name, category)
-        )
-    """)
-
-    # Add analyzed_at column if it doesn't exist (migration)
     try:
-        cursor.execute("SELECT analyzed_at FROM files LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE files ADD COLUMN analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        cursor = conn.cursor()
 
-    # Create index for faster category lookups
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_files_category
-        ON files(category)
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                depicts TEXT,
+                has_depicts INTEGER NOT NULL,
+                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(file_name, category)
+            )
+        """)
 
-    conn.commit()
-    conn.close()
+        # Add analyzed_at column if it doesn't exist (migration)
+        try:
+            cursor.execute("SELECT analyzed_at FROM files LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE files ADD COLUMN analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+
+        # Create index for faster category lookups
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_files_category
+            ON files(category)
+        """)
+
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def insert_file(file_name: str, category: str, depicts: Optional[str], has_depicts: bool) -> None:
@@ -65,65 +67,70 @@ def insert_file(file_name: str, category: str, depicts: Optional[str], has_depic
         has_depicts: Boolean flag
     """
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(file_name, category)
-        DO UPDATE SET
-            depicts = excluded.depicts,
-            has_depicts = excluded.has_depicts,
-            analyzed_at = CURRENT_TIMESTAMP
-    """, (file_name, category, depicts, 1 if has_depicts else 0))
+        cursor.execute("""
+            INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(file_name, category)
+            DO UPDATE SET
+                depicts = excluded.depicts,
+                has_depicts = excluded.has_depicts,
+                analyzed_at = CURRENT_TIMESTAMP
+        """, (file_name, category, depicts, 1 if has_depicts else 0))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_files_by_category(category: str) -> List[Dict[str, Any]]:
     """Get all files for a category."""
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT file_name, depicts, has_depicts
-        FROM files
-        WHERE category = ?
-        ORDER BY has_depicts DESC, file_name ASC
-    """, (category,))
+        cursor.execute("""
+            SELECT file_name, depicts, has_depicts
+            FROM files
+            WHERE category = ?
+            ORDER BY has_depicts DESC, file_name ASC
+        """, (category,))
 
-    rows = cursor.fetchall()
-    conn.close()
-
-    return [dict(row) for row in rows]
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
 
 
 def get_statistics(category: str) -> Dict[str, int]:
     """Get analysis statistics for a category."""
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
-            SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts
-        FROM files
-        WHERE category = ?
-    """, (category,))
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+                SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts
+            FROM files
+            WHERE category = ?
+        """, (category,))
 
-    row = cursor.fetchone()
-    conn.close()
+        row = cursor.fetchone()
 
-    if row and row["total"] > 0:
-        return {
-            "total": row["total"],
-            "with_depicts": row["with_depicts"] or 0,
-            "without_depicts": row["without_depicts"] or 0
-        }
+        if row and row["total"] > 0:
+            return {
+                "total": row["total"],
+                "with_depicts": row["with_depicts"] or 0,
+                "without_depicts": row["without_depicts"] or 0
+            }
 
-    return {"total": 0, "with_depicts": 0, "without_depicts": 0}
+        return {"total": 0, "with_depicts": 0, "without_depicts": 0}
+    finally:
+        conn.close()
 
 
 def get_history_stats() -> List[Dict[str, Any]]:
@@ -135,37 +142,39 @@ def get_history_stats() -> List[Dict[str, Any]]:
         List of category statistics including last analyzed timestamp
     """
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT
-            category,
-            COUNT(*) as total,
-            SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
-            SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts,
-            MAX(analyzed_at) as last_analyzed
-        FROM files
-        GROUP BY category
-        ORDER BY category ASC
-    """)
+        cursor.execute("""
+            SELECT
+                category,
+                COUNT(*) as total,
+                SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+                SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts,
+                MAX(analyzed_at) as last_analyzed
+            FROM files
+            GROUP BY category
+            ORDER BY category ASC
+        """)
 
-    rows = cursor.fetchall()
-    conn.close()
+        rows = cursor.fetchall()
 
-    history = []
-    for row in rows:
-        total = row["total"]
-        with_dep = row["with_depicts"] or 0
-        history.append({
-            "category": row["category"],
-            "total": total,
-            "total_files": total,
-            "with_depicts": with_dep,
-            "without_depicts": total - with_dep,
-            "last_analyzed": row["last_analyzed"]
-        })
+        history = []
+        for row in rows:
+            total = row["total"]
+            with_dep = row["with_depicts"] or 0
+            history.append({
+                "category": row["category"],
+                "total": total,
+                "total_files": total,
+                "with_depicts": with_dep,
+                "without_depicts": total - with_dep,
+                "last_analyzed": row["last_analyzed"]
+            })
 
-    return history
+        return history
+    finally:
+        conn.close()
 
 
 def get_all_categories() -> List[Dict[str, Any]]:
@@ -174,32 +183,36 @@ def get_all_categories() -> List[Dict[str, Any]]:
     Used by the /api/history endpoint.
     """
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT
-            category,
-            COUNT(*) as total_files,
-            SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts
-        FROM files
-        GROUP BY category
-        ORDER BY category ASC
-    """)
+        cursor.execute("""
+            SELECT
+                category,
+                COUNT(*) as total_files,
+                SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+                MAX(analyzed_at) as last_analyzed
+            FROM files
+            GROUP BY category
+            ORDER BY category ASC
+        """)
 
-    rows = cursor.fetchall()
-    conn.close()
+        rows = cursor.fetchall()
 
-    categories = []
-    for row in rows:
-        total = row["total_files"]
-        with_dep = row["with_depicts"] or 0
-        categories.append({
-            "category": row["category"],
-            "total_files": total,
-            "with_depicts": with_dep,
-            "without_depicts": total - with_dep
-        })
-    return categories
+        categories = []
+        for row in rows:
+            total = row["total_files"]
+            with_dep = row["with_depicts"] or 0
+            categories.append({
+                "category": row["category"],
+                "total_files": total,
+                "with_depicts": with_dep,
+                "without_depicts": total - with_dep,
+                "last_analyzed": row["last_analyzed"]
+            })
+        return categories
+    finally:
+        conn.close()
 
 
 def verify_category_saved(category: str) -> Dict[str, Any]:
@@ -211,36 +224,39 @@ def verify_category_saved(category: str) -> Dict[str, Any]:
         category = f"Category:{category}"
 
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) as cnt FROM files WHERE category = ?", (category,))
-    count = cursor.fetchone()["cnt"]
+        cursor.execute("SELECT COUNT(*) as cnt FROM files WHERE category = ?", (category,))
+        count = cursor.fetchone()["cnt"]
 
-    if count == 0:
+        if count == 0:
+            return {"verified": False, "category": category, "record_count": 0}
+
+        cursor.execute(
+            "SELECT file_name, depicts, has_depicts FROM files WHERE category = ? LIMIT 5",
+            (category,)
+        )
+        samples = [dict(r) for r in cursor.fetchall()]
+
+        return {
+            "verified": True,
+            "category": category,
+            "record_count": count,
+            "sample_records": samples
+        }
+    finally:
         conn.close()
-        return {"verified": False, "category": category, "record_count": 0}
-
-    cursor.execute(
-        "SELECT file_name, depicts, has_depicts FROM files WHERE category = ? LIMIT 5",
-        (category,)
-    )
-    samples = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-
-    return {
-        "verified": True,
-        "category": category,
-        "record_count": count,
-        "sample_records": samples
-    }
 
 
 def clear_category(category: str) -> None:
     """Clear all records for a category."""
     conn = _get_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM files WHERE category = ?", (category,))
+        cursor.execute("DELETE FROM files WHERE category = ?", (category,))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()

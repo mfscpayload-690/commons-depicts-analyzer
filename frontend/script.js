@@ -1299,7 +1299,10 @@ async function loadHistory() {
         renderHistoryCards();
 
         // Initialize controls (only once)
-        initHistoryControls();
+        if (!loadHistory._controlsInitialized) {
+            initHistoryControls();
+            loadHistory._controlsInitialized = true;
+        }
 
     } catch (error) {
         console.error('Failed to load history:', error);
@@ -1386,8 +1389,13 @@ async function deleteCategory(categoryName) {
     }
 
     try {
+        const headers = {};
+        if (_csrfToken) {
+            headers['X-CSRF-Token'] = _csrfToken;
+        }
         const response = await fetch(`/api/category/${encodeURIComponent(categoryName)}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers
         });
 
         const data = await response.json();
@@ -1636,6 +1644,7 @@ function copySuggestQid(qid, btn) {
 
 /** Track auth state globally */
 let _isLoggedIn = false;
+let _csrfToken = '';
 let _currentPreviewFile = '';
 
 /**
@@ -1651,6 +1660,7 @@ async function checkAuthStatus() {
 
         if (data.logged_in) {
             _isLoggedIn = true;
+            _csrfToken = data.csrf_token || '';
             authBtn.classList.add('logged-in');
             authBtn.href = '/auth/logout';
             authBtn.title = `Logged in as ${data.username}. Click to logout.`;
@@ -1694,7 +1704,10 @@ async function addDepictsFromSuggest(qid, label, btn) {
     try {
         const response = await fetch('/api/add-depicts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': _csrfToken
+            },
             body: JSON.stringify({ file_title: _currentPreviewFile, qid: qid })
         });
 

@@ -193,9 +193,26 @@ class _AnalysisCancelled(Exception):
 analysis_jobs = {}
 analysis_lock = threading.Lock()
 
+# Maximum age (seconds) to keep completed/error/cancelled jobs before pruning
+_JOB_TTL = 300  # 5 minutes
+
+
+def _prune_stale_jobs() -> None:
+    """Remove completed/error/cancelled jobs older than _JOB_TTL.
+    Must be called while analysis_lock is held."""
+    now = time.time()
+    stale = [
+        jid for jid, job in analysis_jobs.items()
+        if job.get("status") in ("done", "error", "cancelled")
+        and now - job.get("updated_at", 0) > _JOB_TTL
+    ]
+    for jid in stale:
+        del analysis_jobs[jid]
+
 
 def _set_job(job_id: str, **updates) -> None:
     with analysis_lock:
+        _prune_stale_jobs()
         job = analysis_jobs.get(job_id, {})
         job.update(updates)
         job["updated_at"] = time.time()
@@ -441,6 +458,7 @@ def api_history():
 
 
 @app.route("/api/category/<path:category>", methods=["DELETE"])
+@csrf_required
 def api_delete_category(category):
     """
     Delete a category and all its files from the database.
