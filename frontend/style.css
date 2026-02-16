@@ -113,6 +113,11 @@
 [data-theme="dark"] .stat-card {
     background: var(--color-surface);
     border-color: var(--color-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .stat-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="dark"] .modal-content {
@@ -520,6 +525,7 @@ a:visited {
     padding: 0.7rem var(--space-md);
     cursor: pointer;
     background: var(--color-surface);
+    color: var(--color-text);
     border-bottom: none;
     border: none;
     outline: none;
@@ -527,6 +533,8 @@ a:visited {
     appearance: none;
     -webkit-appearance: none;
     font-size: var(--font-size-base);
+    width: 100%;
+    text-align: left;
     transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 
@@ -567,6 +575,11 @@ a:visited {
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 999px;
     padding: 0.1rem 0.4rem;
+}
+
+.suggestion-text {
+    color: var(--color-text);
+    flex: 1;
 }
 
 /* Search History Chips */
@@ -673,31 +686,45 @@ a:visited {
 [data-theme="dark"] .suggestions {
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55);
     border-color: rgba(255, 255, 255, 0.08);
+    background: #1a1d21;
+}
+
+[data-theme="dark"] .suggestion-item {
+    background: #1a1d21;
+    color: var(--color-text);
 }
 
 [data-theme="dark"] .suggestion-item:hover,
 [data-theme="dark"] .suggestion-item.active {
-    background: #1f2b3a;
+    background: #242830;
+    color: #ffffff;
 }
 
 [data-theme="dark"] .suggestions-header {
     background: linear-gradient(90deg, #14181d 0%, #101318 100%);
     border-bottom-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
 }
 
 [data-theme="dark"] .suggestions-hint,
 [data-theme="dark"] .suggestions-empty {
     border-top-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
 }
 
 [data-theme="dark"] .suggestion-icon {
-    background: #1b2128;
+    background: #242830;
     color: #9bbcff;
 }
 
 [data-theme="dark"] .suggestion-prefix {
-    background: #1b2026;
+    background: #242830;
     border-color: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .suggestion-text {
+    color: var(--color-text);
 }
 
 [data-theme="dark"] .search-history {
@@ -858,20 +885,39 @@ a:visited {
     gap: var(--space-sm);
 }
 
+.stats-layout {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-xl);
+    align-items: start;
+}
+
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--space-md);
+    grid-auto-rows: 1fr;
 }
 
 .stat-card {
     background: var(--color-surface);
     border: var(--border-width) solid var(--color-border-light);
-    border-radius: var(--border-radius);
+    border-radius: 6px;
     padding: var(--space-lg);
     text-align: center;
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 120px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .stat-icon {
@@ -1665,19 +1711,29 @@ a:visited {
 
 /* ============ Chart Visualization ============ */
 .chart-container {
-    margin: var(--space-xl) 0;
-    padding: var(--space-lg);
+    padding: var(--space-md);
     background: var(--color-surface);
-    border-radius: var(--border-radius);
+    border-radius: 6px;
     border: var(--border-width) solid var(--color-border-light);
-    max-width: 500px;
-    margin-left: auto;
-    margin-right: auto;
+    width: 300px;
+    height: 100%;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.chart-container canvas {
+    max-width: 100%;
+    max-height: 100%;
 }
 
 [data-theme="dark"] .chart-container {
     background: #1e2126;
     border-color: var(--color-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* ============ Export Buttons ============ */
@@ -2275,8 +2331,22 @@ a:visited {
         flex-direction: column;
     }
 
+    .stats-layout {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .chart-container {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        min-height: 280px;
+        margin: 0 auto;
+        padding: var(--space-md);
     }
 
     .tabs {
@@ -2306,9 +2376,5 @@ a:visited {
 
     .btn-export {
         width: 100%;
-    }
-
-    .chart-container {
-        padding: var(--space-md);
     }
 }

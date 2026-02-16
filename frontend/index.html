@@ -153,32 +153,35 @@
         <!-- Statistics Section -->
         <section id="statistics-section" class="statistics-section hidden">
             <h2><i class="fa-solid fa-chart-pie"></i> Statistics</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <span class="stat-icon"><i class="fa-solid fa-images"></i></span>
-                    <span class="stat-value" id="stat-total">0</span>
-                    <span class="stat-label">Total Files</span>
+            <div class="stats-layout">
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-icon"><i class="fa-solid fa-images"></i></span>
+                        <span class="stat-value" id="stat-total">0</span>
+                        <span class="stat-label">Total Files</span>
+                    </div>
+                    <div class="stat-card stat-success">
+                        <span class="stat-icon"><i class="fa-solid fa-check-circle"></i></span>
+                        <span class="stat-value" id="stat-with-depicts">0</span>
+                        <span class="stat-label">With Depicts</span>
+                    </div>
+                    <div class="stat-card stat-warning">
+                        <span class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                        <span class="stat-value" id="stat-without-depicts">0</span>
+                        <span class="stat-label">Without Depicts</span>
+                    </div>
+                    <div class="stat-card stat-info">
+                        <span class="stat-icon"><i class="fa-solid fa-percent"></i></span>
+                        <span class="stat-value" id="stat-coverage">0%</span>
+                        <span class="stat-label">Coverage</span>
+                    </div>
                 </div>
-                <div class="stat-card stat-success">
-                    <span class="stat-icon"><i class="fa-solid fa-check-circle"></i></span>
-                    <span class="stat-value" id="stat-with-depicts">0</span>
-                    <span class="stat-label">With Depicts</span>
-                </div>
-                <div class="stat-card stat-warning">
-                    <span class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
-                    <span class="stat-value" id="stat-without-depicts">0</span>
-                    <span class="stat-label">Without Depicts</span>
-                </div>
-                <div class="stat-card stat-info">
-                    <span class="stat-icon"><i class="fa-solid fa-percent"></i></span>
-                    <span class="stat-value" id="stat-coverage">0%</span>
-                    <span class="stat-label">Coverage</span>
-                </div>
-            </div>
 
-            <!-- Chart Visualization -->
-            <div class="chart-container">
-                <canvas id="coverage-chart"></canvas>
+                <!-- Chart Visualization -->
+                <div class="chart-container">
+                    <canvas id="coverage-chart"></canvas>
+                </div>
             </div>
 
             <!-- Export Buttons -->
