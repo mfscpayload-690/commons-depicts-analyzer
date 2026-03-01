@@ -31,11 +31,11 @@ logger = logging.getLogger("security")
 # Strict patterns — whitelist approach
 QID_PATTERN = re.compile(r"^Q\d{1,10}$")
 FILE_TITLE_PATTERN = re.compile(
-    r"^[A-Za-z0-9 _\-.,;:()\[\]{}!@#%&+=\u00C0-\u024F\u0400-\u04FF\u4E00-\u9FFF]+\.[a-zA-Z]{2,5}$"
+    r"^[A-Za-z0-9 _\-.,;:()\[\]\u00C0-\u024F\u0400-\u04FF\u4E00-\u9FFF]+\.[a-zA-Z]{2,5}$"
 )
 MAX_FILE_TITLE_LENGTH = 255
 MAX_CATEGORY_LENGTH = 255
-CATEGORY_PATTERN = re.compile(r"^[A-Za-z0-9 _\-.,;:()\[\]{}!@#%&+=\u00C0-\u024F\u0400-\u04FF\u4E00-\u9FFF]+$")
+CATEGORY_PATTERN = re.compile(r"^[A-Za-z0-9 _\-.,;:()\[\]\u00C0-\u024F\u0400-\u04FF\u4E00-\u9FFF]+$")
 
 
 def validate_qid(qid: str) -> str:
@@ -179,7 +179,7 @@ SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; "
         "img-src 'self' https://*.wikimedia.org https://*.wikipedia.org data:; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
         "font-src 'self' https://cdnjs.cloudflare.com; "
         "connect-src 'self'; "
