@@ -25,3 +25,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Development secret key (auto-generated, must not be committed)
+.dev_secret

@@ -12,6 +12,7 @@ SECURITY NOTES:
 """
 
 import os
+import secrets
 import sys
 from pathlib import Path
 
@@ -57,8 +58,18 @@ if not FLASK_SECRET_KEY:
         print("Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"", file=sys.stderr)
         sys.exit(1)
     else:
-        # Auto-generate a secure key for development (changes each restart)
-        FLASK_SECRET_KEY = os.urandom(32).hex()
+        # Persist dev secret to a local file so it survives restarts.
+        # The file is kept outside the repo (project root) and chmod 0o600.
+        _dev_key_file = Path(__file__).parent.parent / '.dev_secret'
+        if _dev_key_file.exists():
+            FLASK_SECRET_KEY = _dev_key_file.read_text().strip()
+        if not FLASK_SECRET_KEY:
+            FLASK_SECRET_KEY = secrets.token_hex(32)
+            try:
+                _dev_key_file.write_text(FLASK_SECRET_KEY)
+                _dev_key_file.chmod(0o600)
+            except OSError:
+                pass  # Non-fatal: key won't persist across restarts
 
 # ============ Session Configuration ============
 SESSION_LIFETIME_MINUTES = int(os.environ.get("SESSION_LIFETIME_MINUTES", "60"))

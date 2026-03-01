@@ -259,6 +259,10 @@ def add_depicts_statement(access_token: str, file_title: str, qid: str) -> Tuple
             return False, "Failed to obtain CSRF token. Please re-authenticate."
 
         # Step 3: Add the depicts claim
+        # Belt-and-suspenders: re-validate QID format before numeric conversion
+        import re as _re
+        if not _re.fullmatch(r'Q[1-9]\d*', qid):
+            return False, "Invalid QID format"
         numeric_id = int(qid[1:])
         value_payload = json.dumps({"entity-type": "item", "numeric-id": numeric_id})
         claim_data = {

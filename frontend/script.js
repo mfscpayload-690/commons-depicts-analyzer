@@ -272,21 +272,21 @@ function renderTablePage(type) {
             row.innerHTML = `
                 <td>${rowNumber}</td>
                 <td class="thumbnail-cell">
-                    <img src="${getThumbnailUrl(file.file_name)}" 
+                    <img src="${getThumbnailUrl(file.file_name)}"
                          alt="${escapeHtml(file.file_name.replace('File:', ''))}"
                          class="file-thumbnail"
                          loading="lazy"
-                         onclick="showFilePreview('${escapeHtml(file.file_name)}')"
-                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect fill=%22%23eee%22 width=%2260%22 height=%2260%22/><text x=%2230%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2210%22>No preview</text></svg>'">
+                         data-action="preview"
+                         data-file="${escapeHtml(file.file_name)}">
                 </td>
                 <td class="file-link">
-                    <a href="javascript:void(0)" onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                    <a href="javascript:void(0)" data-action="preview" data-file="${escapeHtml(file.file_name)}"
                        title="Click to preview">
                         ${escapeHtml(file.file_name.replace('File:', ''))}
                     </a>
                 </td>
                 <td>
-                    <button type="button" class="btn btn-secondary" onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                    <button type="button" class="btn btn-secondary" data-action="preview" data-file="${escapeHtml(file.file_name)}"
                        title="Add depicts in app">
                         + Add depicts
                     </button>
@@ -296,15 +296,15 @@ function renderTablePage(type) {
             row.innerHTML = `
                 <td>${rowNumber}</td>
                 <td class="thumbnail-cell">
-                    <img src="${getThumbnailUrl(file.file_name)}" 
+                    <img src="${getThumbnailUrl(file.file_name)}"
                          alt="${escapeHtml(file.file_name.replace('File:', ''))}"
                          class="file-thumbnail"
                          loading="lazy"
-                         onclick="showFilePreview('${escapeHtml(file.file_name)}')"
-                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect fill=%22%23eee%22 width=%2260%22 height=%2260%22/><text x=%2230%22 y=%2234%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2210%22>No preview</text></svg>'">
+                         data-action="preview"
+                         data-file="${escapeHtml(file.file_name)}">
                 </td>
                 <td class="file-link">
-                    <a href="javascript:void(0)" onclick="showFilePreview('${escapeHtml(file.file_name)}')"
+                    <a href="javascript:void(0)" data-action="preview" data-file="${escapeHtml(file.file_name)}"
                        title="Click to preview">
                         ${escapeHtml(file.file_name.replace('File:', ''))}
                     </a>
@@ -314,6 +314,12 @@ function renderTablePage(type) {
         }
 
         tbody.appendChild(row);
+    });
+
+    // Set onerror handlers via DOM — never via inline HTML attribute
+    const THUMB_FALLBACK = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><rect fill="%23eee" width="60" height="60"/><text x="30" y="34" text-anchor="middle" fill="%23999" font-size="10">No preview</text></svg>';
+    tbody.querySelectorAll('img.file-thumbnail').forEach(img => {
+        img.onerror = function() { this.onerror = null; this.src = THUMB_FALLBACK; };
     });
 
     updatePaginationControls(type, files.length, totalPages);
@@ -423,13 +429,21 @@ function showToast(message, type = 'info', duration = 4000) {
         warning: 'fa-exclamation-triangle'
     };
 
-    toast.innerHTML = `
-        <i class="fa-solid ${iconMap[type] || iconMap.info}"></i>
-        <span class="toast-message">${escapeHtml(message)}</span>
-        <button class="toast-close" onclick="this.parentElement.remove()">
-            <i class="fa-solid fa-times"></i>
-        </button>
-    `;
+    const iconEl = document.createElement('i');
+    iconEl.className = `fa-solid ${iconMap[type] || iconMap.info}`;
+
+    const msgEl = document.createElement('span');
+    msgEl.className = 'toast-message';
+    msgEl.textContent = message;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
+    closeBtn.addEventListener('click', () => toast.remove());
+
+    toast.appendChild(iconEl);
+    toast.appendChild(msgEl);
+    toast.appendChild(closeBtn);
 
     container.appendChild(toast);
 
@@ -529,9 +543,6 @@ function downloadExport(format) {
 
     showToast(`Downloading ${format.toUpperCase()} export...`, 'success', 2000);
 }
-
-// Make downloadExport globally accessible
-window.downloadExport = downloadExport;
 
 function showProgress(percentValue, labelText, detailText) {
     const progress = document.getElementById('progress');
@@ -1022,6 +1033,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize appearance panel
     initAppearancePanel();
 
+    // Initialize delegated event handlers (replaces all inline onclick attributes)
+    initDelegatedHandlers();
+
     applyCategoryFromUrl();
 });
 
@@ -1234,10 +1248,10 @@ function createHistoryCard(category) {
                target="_blank" rel="noopener" class="history-card-action" title="View on Commons">
                 <i class="fa-solid fa-external-link"></i> Commons
             </a>
-            <button class="history-card-action" onclick="reanalyzeCategory('${escapeHtml(displayName)}')" title="Re-analyze">
+            <button class="history-card-action" data-action="reanalyze" data-category="${escapeHtml(displayName)}" title="Re-analyze">
                 <i class="fa-solid fa-arrows-rotate"></i> Re-analyze
             </button>
-            <button class="history-card-action danger" onclick="deleteCategory('${escapeHtml(displayName)}')" title="Delete from database">
+            <button class="history-card-action danger" data-action="delete" data-category="${escapeHtml(displayName)}" title="Delete from database">
                 <i class="fa-solid fa-trash"></i> Delete
             </button>
         </div>
@@ -1677,9 +1691,14 @@ async function showFilePreview(fileTitle) {
     // Fetch file info asynchronously
     try {
         const response = await fetch(`/api/fileinfo/${encodeURIComponent(fileTitle)}`);
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch {
+            data = null;
+        }
 
-        if (!response.ok || data.error) {
+        if (!response.ok || !data || data.error) {
             imageContainer.innerHTML = `
                 <div class="preview-image-loading">
                     <i class="fa-solid fa-image" style="font-size: 48px; color: var(--color-text-muted);"></i>
@@ -1687,14 +1706,20 @@ async function showFilePreview(fileTitle) {
                 </div>
             `;
         } else {
-            // Show image
+            // Show image — set onerror via DOM property, not inline attribute
             const thumbnailUrl = data.thumbnail_url || getThumbnailUrl(fileTitle, 800);
             imageContainer.innerHTML = `
-                <img src="${thumbnailUrl}" 
+                <img src="${thumbnailUrl}"
                      alt="${escapeHtml(fileTitle.replace('File:', ''))}"
-                     class="preview-image"
-                     onerror="this.parentElement.innerHTML='<div class=\\'preview-image-loading\\'><i class=\\'fa-solid fa-image\\' style=\\'font-size: 48px; color: var(--color-text-muted);\\'></i><span>Image could not be loaded</span></div>'">
+                     class="preview-image">
             `;
+            const previewImg = imageContainer.querySelector('img.preview-image');
+            if (previewImg) {
+                previewImg.onerror = function() {
+                    this.onerror = null;
+                    imageContainer.innerHTML = '<div class="preview-image-loading"><i class="fa-solid fa-image" style="font-size: 48px; color: var(--color-text-muted);"></i><span>Image could not be loaded</span></div>';
+                };
+            }
 
             // Populate metadata grid
             const metaItems = [];
@@ -1784,10 +1809,10 @@ async function loadSuggestions(fileTitle, container) {
                     ${s.description ? `<span class="suggest-desc" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</span>` : ''}
                 </div>
                 <div style="display:flex; gap:4px;">
-                    ${_isLoggedIn ? `<button class="suggest-copy-btn" onclick="addDepictsFromSuggest('${escapeHtml(s.qid)}', '${escapeHtml(s.label).replace(/'/g, "\\'")}'  , this)" title="Add depicts">
+                    ${_isLoggedIn ? `<button class="suggest-copy-btn" data-action="add-depicts" data-qid="${escapeHtml(s.qid)}" data-label="${escapeHtml(s.label)}" title="Add depicts">
                         <i class="fa-solid fa-plus"></i> Add
                     </button>` : ''}
-                    <button class="suggest-copy-btn" onclick="copySuggestQid('${escapeHtml(s.qid)}', this)" title="Copy QID">
+                    <button class="suggest-copy-btn" data-action="copy-qid" data-qid="${escapeHtml(s.qid)}" title="Copy QID">
                         <i class="fa-solid fa-copy"></i> Copy
                     </button>
                 </div>
@@ -1931,12 +1956,61 @@ async function addDepictsFromSuggest(qid, label, btn) {
 // Check auth status on page load
 checkAuthStatus();
 
-// Make functions globally accessible for inline onclick handlers
-window.deleteCategory = deleteCategory;
-window.reanalyzeCategory = reanalyzeCategory;
-window.showFilePreview = showFilePreview;
-window.copySuggestQid = copySuggestQid;
-window.addDepictsFromSuggest = addDepictsFromSuggest;
+// ============ Delegated Event Handlers ============
+// All interactive elements use data-action/data-* attributes.
+// A single listener per container replaces per-element inline onclick handlers.
+
+function initDelegatedHandlers() {
+    // Results section: preview file on any [data-action="preview"] element
+    const resultsSection = document.getElementById('results-section');
+    if (resultsSection) {
+        resultsSection.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action="preview"]');
+            if (target && target.dataset.file) showFilePreview(target.dataset.file);
+        });
+    }
+
+    // History grid: re-analyze or delete category
+    const historyGrid = document.getElementById('history-grid');
+    if (historyGrid) {
+        historyGrid.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action]');
+            if (!target) return;
+            const { action, category } = target.dataset;
+            if (action === 'reanalyze' && category) reanalyzeCategory(category);
+            if (action === 'delete' && category) deleteCategory(category);
+        });
+    }
+
+    // File preview modal: add-depicts or copy-qid
+    const previewModal = document.getElementById('file-preview-modal');
+    if (previewModal) {
+        previewModal.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action]');
+            if (!target) return;
+            const { action, qid, label } = target.dataset;
+            if (action === 'add-depicts' && qid) addDepictsFromSuggest(qid, label || '', target);
+            if (action === 'copy-qid' && qid) copySuggestQid(qid, target);
+        });
+    }
+
+    // Export buttons
+    const exportButtons = document.getElementById('export-buttons');
+    if (exportButtons) {
+        exportButtons.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-action="export"]');
+            if (target && target.dataset.format) downloadExport(target.dataset.format);
+        });
+    }
+
+    // Footer info modal links
+    document.querySelectorAll('.footer-link[data-modal]').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            showInfoModal(link.dataset.modal);
+        });
+    });
+}
 
 // ============ Info Modal (About / FAQ / Contact) ============
 
@@ -2029,6 +2103,12 @@ function showInfoModal(type) {
     const bodyEl = document.getElementById('info-modal-body');
     const closeBtn = document.getElementById('info-modal-close');
 
+    // If the modal is already open, clean up previous listeners before re-opening
+    if (!modal.classList.contains('hidden') && modal._cleanup) {
+        modal._cleanup();
+        modal._cleanup = null;
+    }
+
     titleEl.textContent = content.title;
     bodyEl.innerHTML = content.body;
 
@@ -2063,5 +2143,3 @@ function closeInfoModal() {
         modal._cleanup = null;
     }
 }
-
-window.showInfoModal = showInfoModal;

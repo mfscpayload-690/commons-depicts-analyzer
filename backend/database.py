@@ -12,8 +12,8 @@ import threading
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
-# Database path
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "depicts.db")
+# Database path (absolute to avoid ambiguity regardless of working directory)
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "depicts.db"))
 
 # Simple connection pool for reuse across calls
 _POOL_SIZE = 5
@@ -26,6 +26,8 @@ def _create_connection() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -42,7 +44,10 @@ def _get_connection() -> sqlite3.Connection:
                 conn = _create_connection()
                 _pool_created += 1
             else:
-                conn = _pool.get()
+                try:
+                    conn = _pool.get(timeout=5)
+                except queue.Empty:
+                    raise RuntimeError("Database connection pool exhausted. Please try again shortly.")
 
     try:
         yield conn

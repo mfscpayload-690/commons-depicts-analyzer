@@ -184,10 +184,10 @@
 
             <!-- Export Buttons -->
             <div class="export-buttons" id="export-buttons">
-                <button class="btn btn-export" onclick="downloadExport('csv')">
+                <button class="btn btn-export" data-action="export" data-format="csv">
                     <i class="fa-solid fa-file-csv"></i> Export CSV
                 </button>
-                <button class="btn btn-export" onclick="downloadExport('json')">
+                <button class="btn btn-export" data-action="export" data-format="json">
                     <i class="fa-solid fa-file-code"></i> Export JSON
                 </button>
             </div>
@@ -339,9 +339,9 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-links">
-                <a href="#" class="footer-link" onclick="showInfoModal('about'); return false;">About</a>
-                <a href="#" class="footer-link" onclick="showInfoModal('faq'); return false;">FAQ</a>
-                <a href="#" class="footer-link" onclick="showInfoModal('contact'); return false;">Contact</a>
+                <a href="#" class="footer-link" data-modal="about">About</a>
+                <a href="#" class="footer-link" data-modal="faq">FAQ</a>
+                <a href="#" class="footer-link" data-modal="contact">Contact</a>
             </div>
             <p>
                 Built for the <a
