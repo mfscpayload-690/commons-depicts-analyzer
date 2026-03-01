@@ -31,7 +31,7 @@ from api import (fetch_category_files, check_depicts_batch, resolve_labels,
 from database import (init_db, insert_file, get_files_by_category,
                       get_statistics, clear_category, verify_category_saved, get_all_categories)
 from config import (
-    FLASK_SECRET_KEY, ALLOWED_ORIGINS,
+    FLASK_SECRET_KEY, ALLOWED_ORIGINS, IS_PRODUCTION,
     SESSION_LIFETIME_MINUTES, SESSION_COOKIE_SECURE,
     SESSION_COOKIE_HTTPONLY, SESSION_COOKIE_SAMESITE,
     RATE_LIMIT_DEFAULT, RATE_LIMIT_AUTH, RATE_LIMIT_CALLBACK, RATE_LIMIT_API_WRITE,
@@ -40,7 +40,7 @@ from config import (
 from oauth import (is_oauth_configured, get_authorize_url, exchange_code_for_token,
                    get_user_profile, add_depicts_statement, revoke_token)
 from security import (
-    validate_qid, validate_file_title, add_security_headers,
+    validate_qid, validate_file_title, validate_category, add_security_headers,
     generate_csrf_token, csrf_required, login_required
 )
 
@@ -49,11 +49,21 @@ logger = logging.getLogger("app")
 # ============ Initialize Flask App ============
 app = Flask(__name__, static_folder="../frontend")
 app.secret_key = FLASK_SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB request body limit
+
+
+@app.errorhandler(413)
+def request_too_large(e):
+    return jsonify({"error": "Request body too large (max 5 MB)"}), 413
 
 # --- Server-Side Session Configuration ---
 # Sessions stored on filesystem (NOT in browser cookies)
 _session_dir = os.path.join(tempfile.gettempdir(), "cda_sessions")
-os.makedirs(_session_dir, exist_ok=True)
+os.makedirs(_session_dir, mode=0o700, exist_ok=True)
+try:
+    os.chmod(_session_dir, 0o700)
+except OSError:
+    pass
 app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_FILE_DIR"] = _session_dir
 app.config["SESSION_PERMANENT"] = True
@@ -69,6 +79,8 @@ Session(app)
 CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
 # --- Rate Limiting ---
+# NOTE: memory:// storage resets on restart and does not scale across multiple
+# workers or processes. For production, use Redis: storage_uri="redis://..."
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -78,6 +90,14 @@ limiter = Limiter(
 
 # --- Security Headers on Every Response ---
 app.after_request(add_security_headers)
+
+
+@app.before_request
+def enforce_https():
+    """Redirect HTTP to HTTPS in production."""
+    if IS_PRODUCTION and not request.is_secure:
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
 
 
 # Initialize database on startup
@@ -354,8 +374,17 @@ def api_analyze():
     if not category:
         return jsonify({"error": "Category name cannot be empty"}), 400
 
+    try:
+        category = validate_category(category)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+
     async_mode = request.args.get("async") == "1"
-    language = request.args.get("language", "en")  # Get language parameter
+    language = request.args.get("language", "en")
+    # Restrict to supported language codes (matches the dropdown in the UI)
+    _ALLOWED_LANGS = {"en", "fr", "de", "es", "hi", "ml"}
+    if language not in _ALLOWED_LANGS:
+        language = "en"
 
     if async_mode:
         job_id = start_analysis_job(category, language)
