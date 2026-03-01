@@ -25,7 +25,7 @@ WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 
 # User-Agent header (required by Wikimedia API policy)
 HEADERS = {
-    "User-Agent": "CommonsDepictsAnalyzer/1.0 (Educational workshop project; Contact: workshop@example.com)"
+    "User-Agent": "CommonsDepictsAnalyzer/1.0 (Educational workshop project; Contact: aravindlalwork@gmail.com)"
 }
 
 # Simple in-memory cache for QID labels with TTL + LRU eviction
@@ -480,11 +480,24 @@ def fetch_file_info(file_title: str) -> Dict[str, Any]:
     info = page["imageinfo"][0]
     extmeta = info.get("extmetadata", {})
 
-    # Extract description (strip HTML tags for clean display)
+    # Extract description — strip HTML using a proper parser (not regex)
     description_raw = extmeta.get("ImageDescription", {}).get("value", "")
-    # Basic HTML tag stripping
-    import re
-    description = re.sub(r'<[^>]+>', '', description_raw).strip()
+    from html.parser import HTMLParser as _HTMLParser
+
+    class _Stripper(_HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self._parts: list = []
+
+        def handle_data(self, data: str) -> None:
+            self._parts.append(data)
+
+        def get_data(self) -> str:
+            return "".join(self._parts)
+
+    _stripper = _Stripper()
+    _stripper.feed(description_raw)
+    description = _stripper.get_data().strip()
 
     return {
         "title": file_title,
