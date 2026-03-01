@@ -111,11 +111,13 @@ The application follows a modular architecture:
       OAUTH_CALLBACK_URL=http://localhost:5000/auth/callback
       FLASK_SECRET_KEY=your_generated_secret_key_here
       ```
-      
+
       Generate a Flask secret key:
       ```bash
       python -c "import secrets; print(secrets.token_hex(32))"
       ```
+
+   > **Note**: In development mode, `FLASK_SECRET_KEY` is automatically generated on first run and saved to a local `.dev_secret` file (owner-read-only, excluded from git). You only need to set it manually in `.env` for production deployments or when configuring OAuth.
 
 4. **Run the application**
    ```bash
@@ -133,15 +135,25 @@ The application will be accessible at `http://localhost:5000`.
 This project adheres to strict security standards to protect user data and maintain service integrity.
 
 ### Authentication & Sessions
-- **Server-Side Sessions**: User sessions are stored securely on the server filesystem, not in client-side cookies.
-- **OAuth 2.0**: Standard flow for secure third-party authentication with Wikimedia.
-- **Token Handling**: Access tokens are encrypted and handled exclusively by the backend.
+- **Server-Side Sessions**: User sessions are stored securely on the server filesystem (directory restricted to `0o700`), not in client-side cookies.
+- **OAuth 2.0**: Standard authorization code flow for secure third-party authentication with Wikimedia.
+- **Token Handling**: Access tokens are stored server-side and never exposed to browser JavaScript.
+- **Session Persistence**: In development, the Flask secret key is persisted to `.dev_secret` (chmod 600) so sessions survive server restarts.
 
 ### Protection Measures
-- **Rate Limiting**: API endpoints are protected against abuse using token bucket algorithms.
-- **CSRF Protection**: State-changing requests require cryptographic tokens (Double Submit Cookie pattern).
-- **Input Sanitization**: All user inputs are strictly validated against whitelists to prevent injection attacks.
-- **Security Headers**: Responses include strictly configured CSP, HSTS, and X-Frame-Options headers.
+- **Strict CSP**: Content Security Policy disallows `unsafe-inline` in `script-src` — injected scripts are blocked by the browser even if they reach the page.
+- **Event Delegation**: All frontend interactivity uses `data-action` attributes with delegated listeners instead of inline `onclick=` handlers, compatible with the strict CSP.
+- **Rate Limiting**: API endpoints are protected against abuse with per-IP rate limits (login: 5/min, write ops: 30/min, default: 200/hour).
+- **CSRF Protection**: State-changing requests require a cryptographic CSRF token in the `X-CSRF-Token` header. OAuth flow uses a random `state` parameter with constant-time comparison.
+- **Input Validation**: All user inputs (category names, file titles, QIDs, language codes) are validated against strict whitelists before use.
+- **Request Size Limit**: Request bodies over 5 MB are rejected immediately with a `413` error.
+- **HTTPS Enforcement**: In production, all HTTP traffic is permanently redirected to HTTPS.
+- **Security Headers**: Every response includes CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy`.
+
+### Database
+- **WAL Mode**: SQLite runs in Write-Ahead Logging mode so readers and writers do not block each other under concurrent load.
+- **Busy Timeout**: A 5-second busy timeout prevents immediate failures under write contention.
+- **Absolute Path**: The database path is resolved to an absolute path on startup, regardless of the working directory.
 
 ---
 
@@ -172,7 +184,7 @@ The backend exposes a RESTful API for automation and integration.
 | `GET`    | `/api/suggest`                 | Suggest Commons categories by prefix (autocomplete).|
 | `GET`    | `/api/verify/<category>`       | Verify if a category exists on Wikimedia Commons.   |
 | `DELETE` | `/api/category/<category>`     | Delete cached analysis data for a category.         |
-| `GET`    | `/api/export/<category>`       | Export analysis results in CSV format.              |
+| `GET`    | `/api/export/<category>`       | Export analysis results in CSV or JSON format (`?format=csv|json`). |
 | `GET`    | `/api/fileinfo/<file_title>`   | Get detailed information about a specific file.     |
 | `GET`    | `/api/suggests/<file_title>`   | Get Wikidata item suggestions for a specific file.  |
 
