@@ -2,4 +2,4 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "gunicorn --chdir backend main:app -b 0.0.0.0:$PORT"
+startCommand = "python -m gunicorn --chdir backend main:app -b 0.0.0.0:$PORT"
