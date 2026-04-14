@@ -25,6 +25,7 @@ from flask_cors import CORS
 from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from api import (fetch_category_files, check_depicts_batch, resolve_labels,
                  fetch_category_suggestions, fetch_file_info, suggest_depicts)
@@ -45,8 +46,6 @@ from security import (
 )
 
 logger = logging.getLogger("app")
-
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 # ============ Initialize Flask App ============
 app = Flask(__name__, static_folder="../frontend")
