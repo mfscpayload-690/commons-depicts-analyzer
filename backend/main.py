@@ -46,8 +46,12 @@ from security import (
 
 logger = logging.getLogger("app")
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 # ============ Initialize Flask App ============
 app = Flask(__name__, static_folder="../frontend")
+# Tell Flask it is behind a proxy (Railway) so request.is_secure works correctly
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.secret_key = FLASK_SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB request body limit
 
