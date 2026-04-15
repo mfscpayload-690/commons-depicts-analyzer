@@ -38,3 +38,5 @@ jobs:
         with:
           name: "commons-depicts-analyzer-${{ steps.version.outputs.version }}"
           path: dist/*.zip
+          if-no-files-found: error
+          overwrite: true
