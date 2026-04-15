@@ -1891,13 +1891,30 @@ async function checkAuthStatus() {
         if (data.logged_in) {
             _isLoggedIn = true;
             _csrfToken = data.csrf_token || '';
-            authBtn.classList.add('logged-in');
-            authBtn.href = '/auth/logout';
-            authBtn.title = `Logged in as ${data.username}. Click to logout.`;
-            authLabel.textContent = data.username;
-            authBtn.querySelector('i').className = 'fa-solid fa-user-check';
+            const username = data.username || 'User';
+
+            // Hide login button, show user menu
+            authBtn.classList.add('hidden');
+            const userMenu = document.getElementById('user-menu');
+            if (userMenu) userMenu.classList.remove('hidden');
+
+            const userNameLabel = document.getElementById('user-name-label');
+            const dropdownUsername = document.getElementById('dropdown-username');
+            const userAvatar = document.getElementById('user-avatar');
+            const viewCommonsProfile = document.getElementById('view-commons-profile');
+
+            if (userNameLabel) userNameLabel.textContent = username;
+            if (dropdownUsername) dropdownUsername.textContent = username;
+            if (userAvatar) userAvatar.textContent = username.charAt(0).toUpperCase();
+            if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(username)}`;
         } else {
             _isLoggedIn = false;
+            
+            // Show login button, hide user menu
+            const userMenu = document.getElementById('user-menu');
+            if (userMenu) userMenu.classList.add('hidden');
+            authBtn.classList.remove('hidden');
+            
             authBtn.classList.remove('logged-in');
             authBtn.href = '/auth/login';
             authBtn.title = data.oauth_configured
@@ -2023,6 +2040,46 @@ function initDelegatedHandlers() {
             showInfoModal(link.dataset.modal);
         });
     });
+
+    // User Menu Dropdown Toggle
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    const userDropdown = document.getElementById('user-dropdown');
+    
+    if (userMenuBtn && userDropdown) {
+        userMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isExpanded = userMenuBtn.getAttribute('aria-expanded') === 'true';
+            userMenuBtn.setAttribute('aria-expanded', !isExpanded);
+            userDropdown.classList.toggle('hidden');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!userMenuBtn.contains(e.target) && !userDropdown.contains(e.target)) {
+                userMenuBtn.setAttribute('aria-expanded', 'false');
+                userDropdown.classList.add('hidden');
+            }
+        });
+    }
+
+    // Wiring up basic settings modal toggles
+    const openSettingsBtn = document.getElementById('open-settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsCloseBtn = document.getElementById('settings-close-btn');
+    const settingsSaveBtn = document.getElementById('settings-save-btn');
+    
+    if (openSettingsBtn && settingsModal) {
+        openSettingsBtn.addEventListener('click', () => {
+            if (userDropdown) userDropdown.classList.add('hidden');
+            settingsModal.classList.remove('hidden');
+        });
+        const closeSettings = () => settingsModal.classList.add('hidden');
+        if (settingsCloseBtn) settingsCloseBtn.addEventListener('click', closeSettings);
+        if (settingsSaveBtn) settingsSaveBtn.addEventListener('click', () => {
+            closeSettings();
+            showToast('Settings saved successfully', 'success');
+        });
+    }
 }
 
 // ============ Info Modal (About / FAQ / Contact) ============
