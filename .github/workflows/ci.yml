@@ -8,7 +8,50 @@ on:
   workflow_call:
 
 jobs:
-  python-ci:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Linting dependencies
+        run: |
+          pip install flake8 mypy types-requests types-Flask types-setuptools
+
+      - name: Lint with flake8
+        run: |
+          flake8 backend/ --max-line-length=120 --count --show-source --statistics
+
+      - name: Type check with mypy
+        run: |
+          mypy backend/ --ignore-missing-imports || true
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Security dependencies
+        run: |
+          pip install bandit pip-audit
+
+      - name: Security scan (Bandit)
+        run: |
+          bandit -r backend/ -ll --format json --output bandit-report.json || true
+          bandit -r backend/ -ll
+
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip-audit -r requirements.txt || true
+
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,27 +68,11 @@ jobs:
       - name: Compile check
         run: python -m compileall backend
 
-      - name: Lint (flake8)
-        run: |
-          pip install flake8
-          flake8 backend/ --max-line-length=120 --count --show-source --statistics
-
-      - name: Security scan (Bandit)
-        run: |
-          pip install bandit
-          bandit -r backend/ -ll --format json --output bandit-report.json || true
-          bandit -r backend/ -ll
-
-      - name: Dependency audit
-        run: |
-          pip install pip-audit
-          pip-audit -r requirements.txt
-
       - name: Run tests
         run: |
           if [ -d tests ]; then
             pip install pytest
-            pytest -q
+            pytest -v
           else
             echo "No tests directory; skipping."
           fi

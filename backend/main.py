@@ -95,6 +95,7 @@ limiter = Limiter(
 # --- Security Headers on Every Response ---
 app.after_request(add_security_headers)
 
+
 # ---------- Content Security Policy ----------
 @app.after_request
 def set_csp(response):
@@ -366,6 +367,7 @@ def start_analysis_job(category: str, language: str = "en") -> str:
 def serve_index():
     """Serve the frontend index.html."""
     return send_from_directory(app.static_folder, "index.html")
+
 
 # Deep‑link route – renders the same index page and lets the frontend read the category name
 @app.route("/category/<path:name>")
