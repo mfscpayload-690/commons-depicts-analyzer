@@ -83,6 +83,7 @@ def exchange_code_for_token(code: str) -> Tuple[bool, Dict[str, Any]]:
     try:
         response = requests.post(
             OAUTH_TOKEN_URL,
+            headers={"User-Agent": USER_AGENT},
             data={
                 "grant_type": "authorization_code",
                 "code": code,
@@ -102,8 +103,15 @@ def exchange_code_for_token(code: str) -> Tuple[bool, Dict[str, Any]]:
                 return False, {"error": "Invalid token response from authorization server"}
             return True, token_data
         else:
-            logger.error(f"Token exchange failed with status {response.status_code}")
-            return False, {"error": "Token exchange failed"}
+            try:
+                error_body = response.json()
+                reason = error_body.get("error", "unknown_error")
+                desc = error_body.get("error_description", "No description")
+                logger.error(f"Token exchange failed: {reason} ({desc})")
+                return False, {"error": reason, "description": desc}
+            except Exception:
+                logger.error(f"Token exchange failed with status {response.status_code}")
+                return False, {"error": f"HTTP_{response.status_code}"}
     except requests.exceptions.Timeout:
         logger.error("Token exchange timed out")
         return False, {"error": "Authorization server did not respond in time"}
@@ -133,7 +141,8 @@ def get_user_profile(access_token: str) -> Tuple[bool, Dict[str, Any]]:
         response = requests.get(
             OAUTH_PROFILE_URL,
             headers={
-                "Authorization": f"Bearer {access_token}"
+                "Authorization": f"Bearer {access_token}",
+                "User-Agent": USER_AGENT
             },
             timeout=PROFILE_FETCH_TIMEOUT,
             verify=True
