@@ -727,8 +727,9 @@ def auth_callback():
     # Exchange code for token
     success, token_data = exchange_code_for_token(code)
     if not success:
-        logger.error("OAuth token exchange failed")
-        return redirect("/?auth_error=token_failed")
+        reason = token_data.get("error", "token_failed")
+        logger.error(f"OAuth token exchange failed: {reason}")
+        return redirect(f"/?auth_error={reason}")
 
     # SESSION REGENERATION: Prevent session fixation attacks
     # Clear old session data, start fresh
