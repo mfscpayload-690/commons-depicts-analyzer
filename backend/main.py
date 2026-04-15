@@ -95,6 +95,20 @@ limiter = Limiter(
 # --- Security Headers on Every Response ---
 app.after_request(add_security_headers)
 
+# ---------- Content Security Policy ----------
+@app.after_request
+def set_csp(response):
+    # Allow Chart.js source‑maps and other CDN assets
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self' https://cdn.jsdelivr.net; "
+        "img-src 'self' data:;"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    return response
+
 
 @app.before_request
 def enforce_https():
@@ -353,6 +367,11 @@ def serve_index():
     """Serve the frontend index.html."""
     return send_from_directory(app.static_folder, "index.html")
 
+# Deep‑link route – renders the same index page and lets the frontend read the category name
+@app.route("/category/<path:name>")
+def deep_link_category(name):
+    return send_from_directory(app.static_folder, "index.html")
+
 
 @app.route("/<path:filename>")
 def serve_static(filename):
@@ -514,6 +533,7 @@ def api_history():
 
 @app.route("/api/category/<path:category>", methods=["DELETE"])
 @csrf_required
+@login_required
 def api_delete_category(category):
     """
     Delete a category and all its files from the database.
