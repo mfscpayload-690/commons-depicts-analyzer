@@ -60,6 +60,16 @@ let progressStats = {
     emaRate: null
 };
 
+// Auth and CSRF State
+let _isLoggedIn = false;
+let _csrfToken = '';
+let _username = '';
+let _userSettings = {
+    autosave: true,
+    aiSuggest: true,
+    denseView: false
+};
+
 // ============ API Functions ============
 
 /**
@@ -1037,6 +1047,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initDelegatedHandlers();
 
     applyCategoryFromUrl();
+
+    // Setup Auth & UI
+    checkAuthStatus();
+    setupUserInterface();
 });
 
 function applyCategoryFromUrl() {
@@ -1860,8 +1874,7 @@ function copySuggestQid(qid, btn) {
 // ============ Auth Functions ============
 
 /** Track auth state globally */
-let _isLoggedIn = false;
-let _csrfToken = '';
+// Auth variables are now declared globally at the top of the file
 let _currentPreviewFile = '';
 
 /**
