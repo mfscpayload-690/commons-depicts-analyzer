@@ -25,9 +25,36 @@
             </div>
             <div class="header-actions">
                 <div class="auth-section" id="auth-section">
+                    <!-- Login Button (shown when logged out) -->
                     <a href="/auth/login" class="auth-btn" id="auth-btn" title="Login with Wikimedia">
-                        <i class="fa-solid fa-user"></i> <span id="auth-label">Login</span>
+                        <i class="fa-solid fa-user-lock"></i> <span id="auth-label">Login</span>
                     </a>
+                    
+                    <!-- User Profile Menu (shown when logged in) -->
+                    <div id="user-menu" class="user-menu hidden">
+                        <button id="user-menu-btn" class="user-menu-btn" aria-haspopup="true" aria-expanded="false">
+                            <span class="user-avatar" id="user-avatar">?</span>
+                            <span class="user-name" id="user-name-label">User</span>
+                            <i class="fa-solid fa-chevron-down menu-arrow"></i>
+                        </button>
+                        <div id="user-dropdown" class="user-dropdown hidden">
+                            <div class="dropdown-header">
+                                <p class="dropdown-user-full" id="dropdown-username">Not logged in</p>
+                                <p class="dropdown-user-role">Wikimedia Editor</p>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <button class="dropdown-item" id="open-settings-btn">
+                                <i class="fa-solid fa-cog"></i> Analysis Settings
+                            </button>
+                            <a href="#" id="view-commons-profile" target="_blank" class="dropdown-item">
+                                <i class="fa-solid fa-user-circle"></i> Commons Profile
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a href="/auth/logout" class="dropdown-item logout-item">
+                                <i class="fa-solid fa-sign-out-alt"></i> Logout
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 <button id="appearance-toggle" class="appearance-btn" title="Appearance settings">
                     <i class="fa-solid fa-palette"></i>
@@ -431,17 +458,58 @@
         </div>
     </div>
 
-    <!-- Info Modal (About / FAQ / Contact) -->
-    <div id="info-modal" class="info-modal hidden">
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="info-modal-content">
-            <div class="info-modal-header">
-                <h3 id="info-modal-title"></h3>
-                <button class="info-modal-close" id="info-modal-close" title="Close">
+        <div class="modal-content settings-content">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fa-solid fa-sliders"></i> Analysis Settings</h3>
+                <button class="modal-close-btn" id="settings-close-btn">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            <div class="info-modal-body" id="info-modal-body"></div>
+            
+            <div class="settings-group">
+                <h4>General Preferences</h4>
+                <div class="settings-item">
+                    <div class="settings-info">
+                        <span class="settings-label">Auto-save results</span>
+                        <span class="settings-desc">Keep a history of categories analyzed in this session</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="setting-autosave" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="settings-item">
+                    <div class="settings-info">
+                        <span class="settings-label">Enable AI suggestions</span>
+                        <span class="settings-desc">Suggest depicts tags based on filenames (Experimental)</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="setting-ai-suggest" checked>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h4>Interface</h4>
+                <div class="settings-item">
+                    <div class="settings-info">
+                        <span class="settings-label">Dense view</span>
+                        <span class="settings-desc">Show more files at once in the table</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="setting-dense-view">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button id="settings-save-btn" class="btn btn-primary">Save Changes</button>
+            </div>
         </div>
     </div>
 
