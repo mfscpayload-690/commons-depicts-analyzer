@@ -32,15 +32,20 @@
                     
                     <!-- User Profile Menu (shown when logged in) -->
                     <div id="user-menu" class="user-menu hidden">
-                        <button id="user-menu-btn" class="user-menu-btn" aria-haspopup="true" aria-expanded="false">
-                            <span class="user-avatar" id="user-avatar">?</span>
+                        <button id="user-menu-btn" class="user-menu-btn" aria-haspopup="true" aria-expanded="false" title="User menu">
+                            <img id="user-avatar-img" class="user-avatar-img" src="" alt="User avatar" loading="lazy">
                             <span class="user-name" id="user-name-label">User</span>
                             <i class="fa-solid fa-chevron-down menu-arrow"></i>
                         </button>
                         <div id="user-dropdown" class="user-dropdown hidden">
                             <div class="dropdown-header">
-                                <p class="dropdown-user-full" id="dropdown-username">Not logged in</p>
-                                <p class="dropdown-user-role">Wikimedia Editor</p>
+                                <div class="dropdown-avatar-section">
+                                    <img id="dropdown-avatar-img" class="dropdown-avatar-img" src="" alt="User avatar" loading="lazy">
+                                    <div class="dropdown-user-info">
+                                        <p class="dropdown-user-full" id="dropdown-username">Not logged in</p>
+                                        <p class="dropdown-user-role">Wikimedia Editor</p>
+                                    </div>
+                                </div>
                             </div>
                             <div class="dropdown-divider"></div>
                             <button class="dropdown-item" id="open-settings-btn">
