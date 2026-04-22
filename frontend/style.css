@@ -2560,15 +2560,29 @@ a:visited {
     outline-offset: 2px;
 }
 
+.user-avatar-wrap {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-avatar-icon {
+    font-size: 26px;
+    color: var(--color-primary);
+    line-height: 1;
+}
+
 .user-avatar-img {
     width: 28px;
     height: 28px;
     border-radius: 50%;
     object-fit: cover;
-    flex-shrink: 0;
-    border: 1.5px solid var(--color-border-light);
-    background: var(--color-bg);
     display: block;
+    border: 1.5px solid var(--color-border-light);
 }
 
 .user-name {
@@ -2630,14 +2644,28 @@ a:visited {
     gap: var(--space-md);
 }
 
+.dropdown-avatar-wrap {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dropdown-avatar-icon {
+    font-size: 46px;
+    color: var(--color-primary);
+    line-height: 1;
+}
+
 .dropdown-avatar-img {
     width: 48px;
     height: 48px;
     border-radius: 50%;
     object-fit: cover;
-    background: var(--color-bg);
     border: 2px solid var(--color-border-light);
-    flex-shrink: 0;
+    display: block;
 }
 
 .dropdown-user-info {

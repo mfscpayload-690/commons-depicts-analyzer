@@ -1938,14 +1938,7 @@ async function checkAuthStatus() {
  * @param {HTMLImageElement} dropdownImg - Avatar image in dropdown
  */
 async function fetchUserAvatar(username, headerImg, dropdownImg) {
-    // Generate initials SVG as immediate fallback (no broken image flash)
-    const initial = username.charAt(0).toUpperCase();
-    const svgFallback = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Ccircle cx='24' cy='24' r='24' fill='%233366cc'/%3E%3Ctext x='24' y='30' text-anchor='middle' font-family='sans-serif' font-size='20' font-weight='bold' fill='white'%3E${initial}%3C/text%3E%3C/svg%3E`;
-    if (headerImg) headerImg.src = svgFallback;
-    if (dropdownImg) dropdownImg.src = svgFallback;
-
     try {
-        // Fetch user page thumbnail from Wikimedia Commons
         const url = `https://commons.wikimedia.org/w/api.php?action=query&titles=User:${encodeURIComponent(username)}&prop=pageimages&pithumbsize=64&format=json&origin=*`;
         const response = await fetch(url);
         const data = await response.json();
@@ -1953,11 +1946,21 @@ async function fetchUserAvatar(username, headerImg, dropdownImg) {
         const pageData = Object.values(pages)[0];
         if (pageData?.thumbnail?.source) {
             const imgUrl = pageData.thumbnail.source;
-            if (headerImg) headerImg.src = imgUrl;
-            if (dropdownImg) dropdownImg.src = imgUrl;
+            // Show real photo, hide the FA icon
+            if (headerImg) {
+                headerImg.src = imgUrl;
+                headerImg.classList.remove('hidden');
+                document.getElementById('user-avatar-icon')?.classList.add('hidden');
+            }
+            if (dropdownImg) {
+                dropdownImg.src = imgUrl;
+                dropdownImg.classList.remove('hidden');
+                document.getElementById('dropdown-avatar-icon')?.classList.add('hidden');
+            }
         }
+        // If no thumbnail: FA icon stays visible (default state)
     } catch (e) {
-        // SVG fallback already set above, nothing to do
+        // FA icon stays visible as fallback
     }
 }
 
