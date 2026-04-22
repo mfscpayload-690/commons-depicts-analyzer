@@ -1048,9 +1048,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     applyCategoryFromUrl();
 
-    // Setup Auth & UI
-    checkAuthStatus();
+    // Setup Auth & UI — setupUserInterface first (wires static DOM),
+    // then checkAuthStatus (async, populates username + shows menu)
     setupUserInterface();
+    checkAuthStatus();
 });
 
 function applyCategoryFromUrl() {
@@ -1891,9 +1892,8 @@ async function checkAuthStatus() {
         if (data.logged_in) {
             _isLoggedIn = true;
             _csrfToken = data.csrf_token || '';
-            const username = data.username || 'User';
+            const username = (data.username && data.username.trim()) ? data.username.trim() : null;
 
-            // Hide login button, show user menu
             authBtn.classList.add('hidden');
             const userMenu = document.getElementById('user-menu');
             if (userMenu) userMenu.classList.remove('hidden');
@@ -1904,12 +1904,30 @@ async function checkAuthStatus() {
             const dropdownAvatarImg = document.getElementById('dropdown-avatar-img');
             const viewCommonsProfile = document.getElementById('view-commons-profile');
 
-            if (userNameLabel) userNameLabel.textContent = username;
-            if (dropdownUsername) dropdownUsername.textContent = username;
-            if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(username)}`;
-
-            // Fetch user avatar from Wikimedia
-            fetchUserAvatar(username, userAvatarImg, dropdownAvatarImg);
+            if (username) {
+                if (userNameLabel) userNameLabel.textContent = username;
+                if (dropdownUsername) dropdownUsername.textContent = username;
+                if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(username)}`;
+                fetchUserAvatar(username, userAvatarImg, dropdownAvatarImg);
+            } else {
+                // Username missing from session — fetch directly from Wikimedia profile API
+                if (userNameLabel) userNameLabel.textContent = '…';
+                try {
+                    const profileRes = await fetch('https://meta.wikimedia.org/w/rest.php/oauth2/resource/profile', {
+                        headers: { 'Authorization': '' } // token is server-side, use our own endpoint
+                    });
+                } catch (_) {}
+                // Fallback: re-hit our status endpoint once more after a short delay
+                setTimeout(async () => {
+                    const r2 = await fetch('/auth/status');
+                    const d2 = await r2.json();
+                    const u2 = (d2.username && d2.username.trim()) ? d2.username.trim() : 'Unknown';
+                    if (userNameLabel) userNameLabel.textContent = u2;
+                    if (dropdownUsername) dropdownUsername.textContent = u2;
+                    if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(u2)}`;
+                    fetchUserAvatar(u2, userAvatarImg, dropdownAvatarImg);
+                }, 800);
+            }
         } else {
             _isLoggedIn = false;
             
@@ -1979,7 +1997,7 @@ function setupUserInterface() {
         e.stopPropagation();
         const isHidden = userDropdown.classList.contains('hidden');
         userDropdown.classList.toggle('hidden');
-        userMenuBtn.setAttribute('aria-expanded', !isHidden);
+        userMenuBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
     });
 
     // Close dropdown when clicking outside
