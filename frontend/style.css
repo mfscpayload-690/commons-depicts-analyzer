@@ -2565,8 +2565,10 @@ a:visited {
     height: 28px;
     border-radius: 50%;
     object-fit: cover;
+    flex-shrink: 0;
+    border: 1.5px solid var(--color-border-light);
     background: var(--color-bg);
-    border: 1px solid var(--color-border-light);
+    display: block;
 }
 
 .user-name {

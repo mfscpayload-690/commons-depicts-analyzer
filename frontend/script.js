@@ -1938,50 +1938,26 @@ async function checkAuthStatus() {
  * @param {HTMLImageElement} dropdownImg - Avatar image in dropdown
  */
 async function fetchUserAvatar(username, headerImg, dropdownImg) {
+    // Generate initials SVG as immediate fallback (no broken image flash)
+    const initial = username.charAt(0).toUpperCase();
+    const svgFallback = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Ccircle cx='24' cy='24' r='24' fill='%233366cc'/%3E%3Ctext x='24' y='30' text-anchor='middle' font-family='sans-serif' font-size='20' font-weight='bold' fill='white'%3E${initial}%3C/text%3E%3C/svg%3E`;
+    if (headerImg) headerImg.src = svgFallback;
+    if (dropdownImg) dropdownImg.src = svgFallback;
+
     try {
-        const response = await fetch(
-            `https://commons.wikimedia.org/w/api.php?action=query&format=json&list=users&ususers=${encodeURIComponent(username)}&usprop=blockinfo|hasmsg|editcount|registration|emailable|gender|centralids`,
-            { headers: { 'User-Agent': 'CommonsDepictsAnalyzer/1.0' } }
-        );
+        // Fetch user page thumbnail from Wikimedia Commons
+        const url = `https://commons.wikimedia.org/w/api.php?action=query&titles=User:${encodeURIComponent(username)}&prop=pageimages&pithumbsize=64&format=json&origin=*`;
+        const response = await fetch(url);
         const data = await response.json();
-        const users = data.query?.users || [];
-        
-        if (users.length > 0) {
-            const user = users[0];
-            // Try to get avatar from user page or use initials fallback
-            const avatarUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=User:${encodeURIComponent(username)}&prop=pageimages&pithumbsize=48&format=json`;
-            
-            try {
-                const avatarResponse = await fetch(avatarUrl, { 
-                    headers: { 'User-Agent': 'CommonsDepictsAnalyzer/1.0' } 
-                });
-                const avatarData = await avatarResponse.json();
-                const pages = avatarData.query?.pages || {};
-                const pageData = Object.values(pages)[0];
-                
-                if (pageData?.thumbnail?.source) {
-                    const imgUrl = pageData.thumbnail.source;
-                    if (headerImg) headerImg.src = imgUrl;
-                    if (dropdownImg) dropdownImg.src = imgUrl;
-                    return;
-                }
-            } catch (e) {
-                console.debug('Could not fetch user avatar image');
-            }
+        const pages = data.query?.pages || {};
+        const pageData = Object.values(pages)[0];
+        if (pageData?.thumbnail?.source) {
+            const imgUrl = pageData.thumbnail.source;
+            if (headerImg) headerImg.src = imgUrl;
+            if (dropdownImg) dropdownImg.src = imgUrl;
         }
-        
-        // Fallback: use initials avatar
-        const initials = username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3366cc&color=fff&size=48&font-size=0.4&bold=true`;
-        if (headerImg) headerImg.src = fallbackUrl;
-        if (dropdownImg) dropdownImg.src = fallbackUrl;
-    } catch (error) {
-        console.debug('Avatar fetch failed, using fallback:', error);
-        // Use initials as final fallback
-        const initials = username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3366cc&color=fff&size=48&font-size=0.4&bold=true`;
-        if (headerImg) headerImg.src = fallbackUrl;
-        if (dropdownImg) dropdownImg.src = fallbackUrl;
+    } catch (e) {
+        // SVG fallback already set above, nothing to do
     }
 }
 

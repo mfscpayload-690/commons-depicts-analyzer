@@ -103,9 +103,9 @@ def set_csp(response):
     csp = (
         "default-src 'self'; "
         "script-src 'self' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline'; "
-        "connect-src 'self' https://cdn.jsdelivr.net; "
-        "img-src 'self' data:;"
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "connect-src 'self' https://cdn.jsdelivr.net https://commons.wikimedia.org https://www.wikidata.org; "
+        "img-src 'self' data: https://commons.wikimedia.org https://upload.wikimedia.org https://secure.gravatar.com;"
     )
     response.headers['Content-Security-Policy'] = csp
     return response
