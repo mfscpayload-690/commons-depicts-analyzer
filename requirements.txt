@@ -6,3 +6,4 @@ flask-limiter>=3.5.0
 cachelib>=0.10.0
 python-dotenv>=1.0.0
 gunicorn>=21.0.0
+psycopg2-binary>=2.9.0
