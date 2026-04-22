@@ -1048,9 +1048,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     applyCategoryFromUrl();
 
-    // Setup Auth & UI
-    checkAuthStatus();
+    // Setup Auth & UI — setupUserInterface first (wires static DOM),
+    // then checkAuthStatus (async, populates username + shows menu)
     setupUserInterface();
+    checkAuthStatus();
 });
 
 function applyCategoryFromUrl() {
@@ -1891,9 +1892,8 @@ async function checkAuthStatus() {
         if (data.logged_in) {
             _isLoggedIn = true;
             _csrfToken = data.csrf_token || '';
-            const username = data.username || 'User';
+            const username = (data.username && data.username.trim()) ? data.username.trim() : null;
 
-            // Hide login button, show user menu
             authBtn.classList.add('hidden');
             const userMenu = document.getElementById('user-menu');
             if (userMenu) userMenu.classList.remove('hidden');
@@ -1904,12 +1904,30 @@ async function checkAuthStatus() {
             const dropdownAvatarImg = document.getElementById('dropdown-avatar-img');
             const viewCommonsProfile = document.getElementById('view-commons-profile');
 
-            if (userNameLabel) userNameLabel.textContent = username;
-            if (dropdownUsername) dropdownUsername.textContent = username;
-            if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(username)}`;
-
-            // Fetch user avatar from Wikimedia
-            fetchUserAvatar(username, userAvatarImg, dropdownAvatarImg);
+            if (username) {
+                if (userNameLabel) userNameLabel.textContent = username;
+                if (dropdownUsername) dropdownUsername.textContent = username;
+                if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(username)}`;
+                fetchUserAvatar(username, userAvatarImg, dropdownAvatarImg);
+            } else {
+                // Username missing from session — fetch directly from Wikimedia profile API
+                if (userNameLabel) userNameLabel.textContent = '…';
+                try {
+                    const profileRes = await fetch('https://meta.wikimedia.org/w/rest.php/oauth2/resource/profile', {
+                        headers: { 'Authorization': '' } // token is server-side, use our own endpoint
+                    });
+                } catch (_) {}
+                // Fallback: re-hit our status endpoint once more after a short delay
+                setTimeout(async () => {
+                    const r2 = await fetch('/auth/status');
+                    const d2 = await r2.json();
+                    const u2 = (d2.username && d2.username.trim()) ? d2.username.trim() : 'Unknown';
+                    if (userNameLabel) userNameLabel.textContent = u2;
+                    if (dropdownUsername) dropdownUsername.textContent = u2;
+                    if (viewCommonsProfile) viewCommonsProfile.href = `https://commons.wikimedia.org/wiki/User:${encodeURIComponent(u2)}`;
+                    fetchUserAvatar(u2, userAvatarImg, dropdownAvatarImg);
+                }, 800);
+            }
         } else {
             _isLoggedIn = false;
             
@@ -1939,49 +1957,28 @@ async function checkAuthStatus() {
  */
 async function fetchUserAvatar(username, headerImg, dropdownImg) {
     try {
-        const response = await fetch(
-            `https://commons.wikimedia.org/w/api.php?action=query&format=json&list=users&ususers=${encodeURIComponent(username)}&usprop=blockinfo|hasmsg|editcount|registration|emailable|gender|centralids`,
-            { headers: { 'User-Agent': 'CommonsDepictsAnalyzer/1.0' } }
-        );
+        const url = `https://commons.wikimedia.org/w/api.php?action=query&titles=User:${encodeURIComponent(username)}&prop=pageimages&pithumbsize=64&format=json&origin=*`;
+        const response = await fetch(url);
         const data = await response.json();
-        const users = data.query?.users || [];
-        
-        if (users.length > 0) {
-            const user = users[0];
-            // Try to get avatar from user page or use initials fallback
-            const avatarUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=User:${encodeURIComponent(username)}&prop=pageimages&pithumbsize=48&format=json`;
-            
-            try {
-                const avatarResponse = await fetch(avatarUrl, { 
-                    headers: { 'User-Agent': 'CommonsDepictsAnalyzer/1.0' } 
-                });
-                const avatarData = await avatarResponse.json();
-                const pages = avatarData.query?.pages || {};
-                const pageData = Object.values(pages)[0];
-                
-                if (pageData?.thumbnail?.source) {
-                    const imgUrl = pageData.thumbnail.source;
-                    if (headerImg) headerImg.src = imgUrl;
-                    if (dropdownImg) dropdownImg.src = imgUrl;
-                    return;
-                }
-            } catch (e) {
-                console.debug('Could not fetch user avatar image');
+        const pages = data.query?.pages || {};
+        const pageData = Object.values(pages)[0];
+        if (pageData?.thumbnail?.source) {
+            const imgUrl = pageData.thumbnail.source;
+            // Show real photo, hide the FA icon
+            if (headerImg) {
+                headerImg.src = imgUrl;
+                headerImg.classList.remove('hidden');
+                document.getElementById('user-avatar-icon')?.classList.add('hidden');
+            }
+            if (dropdownImg) {
+                dropdownImg.src = imgUrl;
+                dropdownImg.classList.remove('hidden');
+                document.getElementById('dropdown-avatar-icon')?.classList.add('hidden');
             }
         }
-        
-        // Fallback: use initials avatar
-        const initials = username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3366cc&color=fff&size=48&font-size=0.4&bold=true`;
-        if (headerImg) headerImg.src = fallbackUrl;
-        if (dropdownImg) dropdownImg.src = fallbackUrl;
-    } catch (error) {
-        console.debug('Avatar fetch failed, using fallback:', error);
-        // Use initials as final fallback
-        const initials = username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3366cc&color=fff&size=48&font-size=0.4&bold=true`;
-        if (headerImg) headerImg.src = fallbackUrl;
-        if (dropdownImg) dropdownImg.src = fallbackUrl;
+        // If no thumbnail: FA icon stays visible (default state)
+    } catch (e) {
+        // FA icon stays visible as fallback
     }
 }
 
@@ -2000,7 +1997,7 @@ function setupUserInterface() {
         e.stopPropagation();
         const isHidden = userDropdown.classList.contains('hidden');
         userDropdown.classList.toggle('hidden');
-        userMenuBtn.setAttribute('aria-expanded', !isHidden);
+        userMenuBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
     });
 
     // Close dropdown when clicking outside

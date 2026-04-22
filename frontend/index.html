@@ -33,14 +33,20 @@
                     <!-- User Profile Menu (shown when logged in) -->
                     <div id="user-menu" class="user-menu hidden">
                         <button id="user-menu-btn" class="user-menu-btn" aria-haspopup="true" aria-expanded="false" title="User menu">
-                            <img id="user-avatar-img" class="user-avatar-img" src="" alt="User avatar" loading="lazy">
+                            <span class="user-avatar-wrap" id="user-avatar-wrap">
+                                <i class="fa-solid fa-circle-user user-avatar-icon" id="user-avatar-icon"></i>
+                                <img id="user-avatar-img" class="user-avatar-img hidden" src="" alt="User avatar">
+                            </span>
                             <span class="user-name" id="user-name-label">User</span>
                             <i class="fa-solid fa-chevron-down menu-arrow"></i>
                         </button>
                         <div id="user-dropdown" class="user-dropdown hidden">
                             <div class="dropdown-header">
                                 <div class="dropdown-avatar-section">
-                                    <img id="dropdown-avatar-img" class="dropdown-avatar-img" src="" alt="User avatar" loading="lazy">
+                                    <span class="dropdown-avatar-wrap" id="dropdown-avatar-wrap">
+                                        <i class="fa-solid fa-circle-user dropdown-avatar-icon" id="dropdown-avatar-icon"></i>
+                                        <img id="dropdown-avatar-img" class="dropdown-avatar-img hidden" src="" alt="User avatar">
+                                    </span>
                                     <div class="dropdown-user-info">
                                         <p class="dropdown-user-full" id="dropdown-username">Not logged in</p>
                                         <p class="dropdown-user-role">Wikimedia Editor</p>
@@ -56,7 +62,7 @@
                             </a>
                             <div class="dropdown-divider"></div>
                             <a href="/auth/logout" class="dropdown-item logout-item">
-                                <i class="fa-solid fa-sign-out-alt"></i> Logout
+                                <i class="fa-solid fa-right-from-bracket"></i> Logout
                             </a>
                         </div>
                     </div>
