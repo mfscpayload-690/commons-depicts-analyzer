@@ -2,8 +2,7 @@
 Database Module — Commons Depicts Analyzer
 
 SQLite for local development, PostgreSQL on Railway (or any DATABASE_URL).
-The DATABASE_URL environment variable is set automatically by Railway when
-a Postgres service is linked. If absent, falls back to SQLite.
+DATABASE_URL is set automatically by Railway when a Postgres service is linked.
 """
 
 import os
@@ -23,6 +22,7 @@ USE_POSTGRES = bool(DATABASE_URL)
 # ── SQLite setup ──────────────────────────────────────────────────────────────
 if not USE_POSTGRES:
     import sqlite3
+
     DB_PATH = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "data", "depicts.db")
     )
@@ -79,22 +79,65 @@ else:
             _pg_pool.putconn(conn)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Static SQL (no f-strings — placeholders are dialect constants) ────────────
+# SQLite uses ?, PostgreSQL uses %s. Defined once here, used throughout.
 
-def _placeholder(n: int = 1) -> str:
-    """Return ? for SQLite, %s for Postgres."""
-    return "%s" if USE_POSTGRES else "?"
+_SQL_INSERT_PG = """
+    INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
+    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+    ON CONFLICT (file_name, category) DO UPDATE SET
+        depicts     = EXCLUDED.depicts,
+        has_depicts = EXCLUDED.has_depicts,
+        analyzed_at = CURRENT_TIMESTAMP
+"""
 
+_SQL_INSERT_SQ = """
+    INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(file_name, category) DO UPDATE SET
+        depicts     = excluded.depicts,
+        has_depicts = excluded.has_depicts,
+        analyzed_at = CURRENT_TIMESTAMP
+"""
 
-def _placeholders(n: int) -> str:
-    p = _placeholder()
-    return ", ".join([p] * n)
+_SQL_SELECT_FILES_PG = """
+    SELECT file_name, depicts, has_depicts
+    FROM files
+    WHERE category = %s
+    ORDER BY has_depicts DESC, file_name ASC
+"""
 
+_SQL_SELECT_FILES_SQ = """
+    SELECT file_name, depicts, has_depicts
+    FROM files
+    WHERE category = ?
+    ORDER BY has_depicts DESC, file_name ASC
+"""
 
-def _row_to_dict(row) -> dict:
-    if USE_POSTGRES:
-        return dict(row)
-    return dict(row)  # sqlite3.Row also supports dict()
+_SQL_STATS_PG = """
+    SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+        SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts
+    FROM files WHERE category = %s
+"""
+
+_SQL_STATS_SQ = """
+    SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+        SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts
+    FROM files WHERE category = ?
+"""
+
+_SQL_COUNT_PG = "SELECT COUNT(*) as cnt FROM files WHERE category = %s"
+_SQL_COUNT_SQ = "SELECT COUNT(*) as cnt FROM files WHERE category = ?"
+
+_SQL_SAMPLE_PG = "SELECT file_name, depicts, has_depicts FROM files WHERE category = %s LIMIT 5"
+_SQL_SAMPLE_SQ = "SELECT file_name, depicts, has_depicts FROM files WHERE category = ? LIMIT 5"
+
+_SQL_DELETE_PG = "DELETE FROM files WHERE category = %s"
+_SQL_DELETE_SQ = "DELETE FROM files WHERE category = ?"
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -103,7 +146,6 @@ def init_db() -> None:
     """Create tables and indexes if they don't exist."""
     with _get_connection() as conn:
         cur = conn.cursor()
-
         if USE_POSTGRES:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS files (
@@ -116,10 +158,9 @@ def init_db() -> None:
                     UNIQUE (file_name, category)
                 )
             """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_files_category ON files(category)
-            """)
-            conn.commit()
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_files_category ON files(category)"
+            )
         else:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS files (
@@ -132,76 +173,47 @@ def init_db() -> None:
                     UNIQUE(file_name, category)
                 )
             """)
-            # migration: add analyzed_at if missing
             try:
                 cur.execute("SELECT analyzed_at FROM files LIMIT 1")
             except Exception:
                 cur.execute(
                     "ALTER TABLE files ADD COLUMN analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                 )
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_files_category ON files(category)
-            """)
-            conn.commit()
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_files_category ON files(category)"
+            )
+        conn.commit()
 
 
 def insert_file(
     file_name: str, category: str, depicts: Optional[str], has_depicts: bool
 ) -> None:
-    p = _placeholder()
+    sql = _SQL_INSERT_PG if USE_POSTGRES else _SQL_INSERT_SQ
     with _get_connection() as conn:
         cur = conn.cursor()
-        if USE_POSTGRES:
-            cur.execute(f"""
-                INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
-                VALUES ({p}, {p}, {p}, {p}, CURRENT_TIMESTAMP)
-                ON CONFLICT (file_name, category) DO UPDATE SET
-                    depicts     = EXCLUDED.depicts,
-                    has_depicts = EXCLUDED.has_depicts,
-                    analyzed_at = CURRENT_TIMESTAMP
-            """, (file_name, category, depicts, 1 if has_depicts else 0))
-        else:
-            cur.execute(f"""
-                INSERT INTO files (file_name, category, depicts, has_depicts, analyzed_at)
-                VALUES ({p}, {p}, {p}, {p}, CURRENT_TIMESTAMP)
-                ON CONFLICT(file_name, category) DO UPDATE SET
-                    depicts     = excluded.depicts,
-                    has_depicts = excluded.has_depicts,
-                    analyzed_at = CURRENT_TIMESTAMP
-            """, (file_name, category, depicts, 1 if has_depicts else 0))
+        cur.execute(sql, (file_name, category, depicts, 1 if has_depicts else 0))
         conn.commit()
 
 
 def get_files_by_category(category: str) -> List[Dict[str, Any]]:
-    p = _placeholder()
+    sql = _SQL_SELECT_FILES_PG if USE_POSTGRES else _SQL_SELECT_FILES_SQ
     with _get_connection() as conn:
         if USE_POSTGRES:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             cur = conn.cursor()
-        cur.execute(f"""
-            SELECT file_name, depicts, has_depicts
-            FROM files
-            WHERE category = {p}
-            ORDER BY has_depicts DESC, file_name ASC
-        """, (category,))
+        cur.execute(sql, (category,))
         return [dict(r) for r in cur.fetchall()]
 
 
 def get_statistics(category: str) -> Dict[str, int]:
-    p = _placeholder()
+    sql = _SQL_STATS_PG if USE_POSTGRES else _SQL_STATS_SQ
     with _get_connection() as conn:
         if USE_POSTGRES:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             cur = conn.cursor()
-        cur.execute(f"""
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
-                SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts
-            FROM files WHERE category = {p}
-        """, (category,))
+        cur.execute(sql, (category,))
         row = dict(cur.fetchone())
         if row and row["total"]:
             return {
@@ -213,24 +225,24 @@ def get_statistics(category: str) -> Dict[str, int]:
 
 
 def get_all_categories() -> List[Dict[str, Any]]:
+    sql = """
+        SELECT
+            category,
+            COUNT(*) as total_files,
+            SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+            MAX(analyzed_at) as last_analyzed
+        FROM files
+        GROUP BY category
+        ORDER BY category ASC
+    """
     with _get_connection() as conn:
         if USE_POSTGRES:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                category,
-                COUNT(*) as total_files,
-                SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
-                MAX(analyzed_at) as last_analyzed
-            FROM files
-            GROUP BY category
-            ORDER BY category ASC
-        """)
-        rows = cur.fetchall()
+        cur.execute(sql)
         result = []
-        for row in rows:
+        for row in cur.fetchall():
             row = dict(row)
             total = int(row["total_files"])
             with_dep = int(row["with_depicts"] or 0)
@@ -245,25 +257,25 @@ def get_all_categories() -> List[Dict[str, Any]]:
 
 
 def get_history_stats() -> List[Dict[str, Any]]:
+    sql = """
+        SELECT
+            category,
+            COUNT(*) as total,
+            SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
+            SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts,
+            MAX(analyzed_at) as last_analyzed
+        FROM files
+        GROUP BY category
+        ORDER BY category ASC
+    """
     with _get_connection() as conn:
         if USE_POSTGRES:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                category,
-                COUNT(*) as total,
-                SUM(CASE WHEN has_depicts = 1 THEN 1 ELSE 0 END) as with_depicts,
-                SUM(CASE WHEN has_depicts = 0 THEN 1 ELSE 0 END) as without_depicts,
-                MAX(analyzed_at) as last_analyzed
-            FROM files
-            GROUP BY category
-            ORDER BY category ASC
-        """)
-        rows = cur.fetchall()
+        cur.execute(sql)
         history = []
-        for row in rows:
+        for row in cur.fetchall():
             row = dict(row)
             total = int(row["total"])
             with_dep = int(row["with_depicts"] or 0)
@@ -281,27 +293,30 @@ def get_history_stats() -> List[Dict[str, Any]]:
 def verify_category_saved(category: str) -> Dict[str, Any]:
     if not category.startswith("Category:"):
         category = f"Category:{category}"
-    p = _placeholder()
+    sql_count = _SQL_COUNT_PG if USE_POSTGRES else _SQL_COUNT_SQ
+    sql_sample = _SQL_SAMPLE_PG if USE_POSTGRES else _SQL_SAMPLE_SQ
     with _get_connection() as conn:
         if USE_POSTGRES:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             cur = conn.cursor()
-        cur.execute(f"SELECT COUNT(*) as cnt FROM files WHERE category = {p}", (category,))
+        cur.execute(sql_count, (category,))
         count = int(dict(cur.fetchone())["cnt"])
         if count == 0:
             return {"verified": False, "category": category, "record_count": 0}
-        cur.execute(
-            f"SELECT file_name, depicts, has_depicts FROM files WHERE category = {p} LIMIT 5",
-            (category,),
-        )
+        cur.execute(sql_sample, (category,))
         samples = [dict(r) for r in cur.fetchall()]
-        return {"verified": True, "category": category, "record_count": count, "sample_records": samples}
+        return {
+            "verified": True,
+            "category": category,
+            "record_count": count,
+            "sample_records": samples,
+        }
 
 
 def clear_category(category: str) -> None:
-    p = _placeholder()
+    sql = _SQL_DELETE_PG if USE_POSTGRES else _SQL_DELETE_SQ
     with _get_connection() as conn:
         cur = conn.cursor()
-        cur.execute(f"DELETE FROM files WHERE category = {p}", (category,))
+        cur.execute(sql, (category,))
         conn.commit()
